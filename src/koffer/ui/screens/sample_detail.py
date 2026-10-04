@@ -104,6 +104,7 @@ class SampleDetailScreen(QWidget):
     back_requested = Signal()
     edit_metadata_requested = Signal(str)
     prepare_requested = Signal(str)
+    find_similar_requested = Signal(str)
 
     def __init__(
         self,
@@ -134,6 +135,10 @@ class SampleDetailScreen(QWidget):
         self._prepare_btn.setProperty("primary", True)
         self._prepare_btn.clicked.connect(self._emit_prepare)
         top.addWidget(self._prepare_btn)
+        self._similar_btn = QPushButton("Find Similar")
+        self._similar_btn.setObjectName("findSimilarButton")
+        self._similar_btn.clicked.connect(self._emit_find_similar)
+        top.addWidget(self._similar_btn)
         root.addLayout(top)
 
         self._title = QLabel("Sample Detail")
@@ -228,3 +233,7 @@ class SampleDetailScreen(QWidget):
     def _emit_prepare(self) -> None:
         if self._sample_id is not None:
             self.prepare_requested.emit(str(self._sample_id))
+
+    def _emit_find_similar(self) -> None:
+        if self._sample_id is not None:
+            self.find_similar_requested.emit(str(self._sample_id))

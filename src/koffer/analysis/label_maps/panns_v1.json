@@ -1,0 +1,19 @@
+{
+  "version": "panns_v1",
+  "provider": "panns",
+  "model_version": "Cnn14_mAP=0.431",
+  "mappings": {
+    "Bass drum": {"dimension": "instrument_source", "value": "Kick"},
+    "Snare drum": {"dimension": "instrument_source", "value": "Snare"},
+    "Hi-hat": {"dimension": "instrument_source", "value": "Hi-hat"},
+    "Cymbal": {"dimension": "instrument_source", "value": "Cymbal"},
+    "Drum kit": {"dimension": "sample_type", "value": "Drum"},
+    "Singing": {"dimension": "instrument_source", "value": "Vocal"},
+    "Speech": {"dimension": "instrument_source", "value": "Vocal"},
+    "Synthesizer": {"dimension": "instrument_source", "value": "Synth"},
+    "Electric guitar": {"dimension": "instrument_source", "value": "Guitar"},
+    "Acoustic guitar": {"dimension": "instrument_source", "value": "Guitar"},
+    "Piano": {"dimension": "instrument_source", "value": "Piano"},
+    "Bass guitar": {"dimension": "instrument_source", "value": "Bass"}
+  }
+}

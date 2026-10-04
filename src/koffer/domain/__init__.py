@@ -23,6 +23,7 @@ from koffer.domain.enums import (
 )
 from koffer.domain.errors import (
     ApplicationError,
+    ModelUnavailableError,
     NotFoundError,
     PathUnavailableError,
     UnsupportedOperationError,
@@ -102,6 +103,7 @@ __all__ = [
     "MetadataWritePlan",
     "MetadataWriteRequest",
     "MetadataWriteTarget",
+    "ModelUnavailableError",
     "NotFoundError",
     "NumericRange",
     "Page",

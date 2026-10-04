@@ -21,6 +21,7 @@ from koffer.services.playback import PlaybackService
 from koffer.services.preparation import PreparationService
 from koffer.services.samples import SampleService
 from koffer.services.search import SearchService
+from koffer.services.similarity import SimilarityService
 from koffer.services.sources import SourceService
 
 
@@ -45,6 +46,7 @@ class AppContext:
     file_operation_service: FileOperationService
     preparation_service: PreparationService
     analysis_service: AnalysisService
+    similarity_service: SimilarityService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -71,6 +73,8 @@ class AppContext:
         file_operation_service = FileOperationService(factory, scheduler)
         preparation_service = PreparationService(factory, scheduler)
         analysis_service = AnalysisService(factory, scheduler)
+        # Default PANNs provider stays unavailable without out-of-git weights.
+        similarity_service = SimilarityService(factory, paths.cache_dir, scheduler=scheduler)
         return cls(
             paths=paths,
             connection_factory=factory,
@@ -85,6 +89,7 @@ class AppContext:
             file_operation_service=file_operation_service,
             preparation_service=preparation_service,
             analysis_service=analysis_service,
+            similarity_service=similarity_service,
         )
 
     @classmethod

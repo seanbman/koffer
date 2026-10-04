@@ -132,7 +132,7 @@ class AnalysisService:
             raise NotFoundError(f"Sample not found: {sample_id}")
         if self._scheduler is None:
             raise ValidationError("JobScheduler is required to queue analysis")
-        # FULL falls back to deterministic until Phase 11 semantic provider exists.
+        # FULL currently queues deterministic analysis; semantic Suggestions fuse later.
         return self._scheduler.submit(
             JobSpec(
                 type=JobType.DETERMINISTIC_ANALYSIS,

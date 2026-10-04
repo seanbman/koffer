@@ -33,6 +33,12 @@ from koffer.services.preparation import (
 )
 from koffer.services.samples import ProvenanceCategory, SampleDetail, SampleService
 from koffer.services.search import SearchService
+from koffer.services.similarity import (
+    SimilarityResult,
+    SimilarityService,
+    SimilarityStatus,
+    SimilarityStatusKind,
+)
 from koffer.services.sources import SourceDetailView, SourceListItem, SourceService
 
 __all__ = [
@@ -59,6 +65,10 @@ __all__ = [
     "SampleDetail",
     "SampleService",
     "SearchService",
+    "SimilarityResult",
+    "SimilarityService",
+    "SimilarityStatus",
+    "SimilarityStatusKind",
     "SourceDetailView",
     "SourceListItem",
     "SourceService",

@@ -47,3 +47,10 @@ class UnsupportedOperationError(ApplicationError):
 
     def __init__(self, summary: str, detail: str = "") -> None:
         super().__init__("unsupported_operation", summary, detail, retryable=False)
+
+
+class ModelUnavailableError(ApplicationError):
+    """Semantic model/provider is disabled or weights are absent (S11)."""
+
+    def __init__(self, summary: str, detail: str = "", *, retryable: bool = True) -> None:
+        super().__init__("model_unavailable", summary, detail, retryable=retryable)

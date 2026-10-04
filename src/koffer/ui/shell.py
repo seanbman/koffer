@@ -1,4 +1,4 @@
-"""Dark application shell with S00–S10/S12–S14/S16 foundations and transport."""
+"""Dark application shell with S00–S11/S12–S14/S16 foundations and transport."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ from koffer.ui.screens.metadata_editor import MetadataEditorScreen
 from koffer.ui.screens.render_export import RenderExportScreen
 from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.sample_preparation import SamplePreparationScreen
+from koffer.ui.screens.similar_sounds import SimilarSoundsScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.suggestions_review import SuggestionsReviewScreen
@@ -51,6 +52,7 @@ SCREEN_SAMPLE_DETAIL = "S07"
 SCREEN_SAMPLE_PREPARATION = "S08"
 SCREEN_METADATA_EDITOR = "S09"
 SCREEN_SUGGESTIONS = "S10"
+SCREEN_SIMILAR_SOUNDS = "S11"
 SCREEN_IMPORT_REVIEW = "S12"
 SCREEN_CONFLICTS = "S13"
 SCREEN_RENDER_EXPORT = "S14"
@@ -112,6 +114,7 @@ class MainWindow(QMainWindow):
         self._sample_preparation = SamplePreparationScreen(context.preparation_service)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
         self._suggestions = SuggestionsReviewScreen(context.analysis_service)
+        self._similar_sounds = SimilarSoundsScreen(context.similarity_service)
         self._import_review = ImportReviewScreen(context.file_operation_service)
         self._conflicts = ConflictsScreen(context.file_operation_service)
         self._render_export = RenderExportScreen(context.preparation_service)
@@ -127,6 +130,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sample_preparation)
         self._stack.addWidget(self._metadata_editor)
         self._stack.addWidget(self._suggestions)
+        self._stack.addWidget(self._similar_sounds)
         self._stack.addWidget(self._import_review)
         self._stack.addWidget(self._conflicts)
         self._stack.addWidget(self._render_export)
@@ -144,6 +148,9 @@ class MainWindow(QMainWindow):
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
         self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
+        self._sample_detail.find_similar_requested.connect(self._open_similar_sounds)
+        self._similar_sounds.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
+        self._similar_sounds.preview_requested.connect(self._preview_similar_sample)
         self._sample_preparation.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._sample_preparation.export_requested.connect(self._open_render_export)
         self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
@@ -233,6 +240,11 @@ class MainWindow(QMainWindow):
         """Present S10 Suggestions Review inbox."""
         self.navigate(SCREEN_SUGGESTIONS)
 
+    def open_similar_sounds(self, sample_id: EntityId, *, filename: str = "") -> None:
+        """Present S11 Similar Sounds for the seed Sample."""
+        self._similar_sounds.show_seed(sample_id, filename=filename)
+        self.navigate(SCREEN_SIMILAR_SOUNDS)
+
     def open_sample_preparation(self, sample_id: EntityId) -> None:
         """Present S08 for the given Sample id."""
         self._sample_preparation.show_sample(sample_id)
@@ -255,6 +267,7 @@ class MainWindow(QMainWindow):
             SCREEN_SAMPLE_PREPARATION: self._sample_preparation,
             SCREEN_METADATA_EDITOR: self._metadata_editor,
             SCREEN_SUGGESTIONS: self._suggestions,
+            SCREEN_SIMILAR_SOUNDS: self._similar_sounds,
             SCREEN_IMPORT_REVIEW: self._import_review,
             SCREEN_CONFLICTS: self._conflicts,
             SCREEN_RENDER_EXPORT: self._render_export,
@@ -281,6 +294,8 @@ class MainWindow(QMainWindow):
             self._metadata_editor.refresh()
         if screen_id == SCREEN_SUGGESTIONS:
             self._suggestions.refresh()
+        if screen_id == SCREEN_SIMILAR_SOUNDS:
+            self._similar_sounds.refresh()
         if screen_id == SCREEN_IMPORT_REVIEW:
             self._import_review.refresh()
         if screen_id == SCREEN_CONFLICTS:
@@ -401,6 +416,24 @@ class MainWindow(QMainWindow):
         if not isinstance(sample_id, str):
             sample_id = str(sample_id)
         self.open_sample_preparation(EntityId(sample_id))
+
+    def _open_similar_sounds(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        sid = EntityId(sample_id)
+        detail = self._context.sample_service.get_detail(sid)
+        self.open_similar_sounds(sid, filename=detail.sample.filename)
+
+    def _preview_similar_sample(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        sid = EntityId(sample_id)
+        path = self._context.resolve_sample_media_path(sid)
+        if path is None:
+            return
+        self._context.playback_service.load(sid, path)
+        detail = self._context.sample_service.get_detail(sid)
+        self._transport.set_selection(str(sid), detail.sample.filename)
 
     def _open_render_export(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):

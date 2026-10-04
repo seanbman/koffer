@@ -22,3 +22,9 @@ htmlcov/
 # Generated packaging output
 packaging/appimage/out/
 packaging/AppDir/
+
+# Semantic model weights must never enter Git (docs/23)
+*.pth
+*.pt
+*.onnx
+models/cache/
