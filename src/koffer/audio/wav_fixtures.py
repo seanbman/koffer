@@ -64,6 +64,36 @@ def write_malformed_wav(path: Path) -> Path:
     return path
 
 
+def write_tagged_wav(
+    path: Path,
+    *,
+    title: str = "Fixture Title",
+    artist: str = "Fixture Artist",
+    album: str = "Fixture Album",
+    genre: str = "Electronic",
+    duration_s: float = 0.25,
+) -> Path:
+    """Write a PCM WAV and attach ID3 tags via Mutagen (supported read fixture)."""
+    from mutagen.id3 import TALB, TCON, TIT2, TPE1
+    from mutagen.wave import WAVE
+
+    target = write_sine_wav(path, duration_s=duration_s)
+    audio = WAVE(str(target))  # type: ignore[no-untyped-call]
+    if audio.tags is None:
+        audio.add_tags()  # type: ignore[no-untyped-call]
+    assert audio.tags is not None
+    audio.tags.delall("TIT2")
+    audio.tags.delall("TPE1")
+    audio.tags.delall("TALB")
+    audio.tags.delall("TCON")
+    audio.tags.add(TIT2(encoding=3, text=[title]))
+    audio.tags.add(TPE1(encoding=3, text=[artist]))
+    audio.tags.add(TALB(encoding=3, text=[album]))
+    audio.tags.add(TCON(encoding=3, text=[genre]))
+    audio.save()
+    return target
+
+
 def generate_default_set(output_dir: Path) -> dict[str, Path]:
     """Generate the Phase-2 probe fixture set under ``output_dir``."""
     root = Path(output_dir)
@@ -73,4 +103,5 @@ def generate_default_set(output_dir: Path) -> dict[str, Path]:
         "stereo_sine": write_sine_wav(root / "stereo_sine_1s.wav", channels=2, duration_s=1.0),
         "silence": write_silence_wav(root / "silence_250ms.wav", duration_s=0.25),
         "malformed": write_malformed_wav(root / "malformed.wav"),
+        "tagged": write_tagged_wav(root / "tagged_sine.wav"),
     }

@@ -1,4 +1,4 @@
-"""Application composition root: paths, DB, scheduler, Source/Search/Playback/Collections."""
+"""Application composition root: paths, DB, scheduler, and Phase 5 services."""
 
 from __future__ import annotations
 
@@ -14,7 +14,9 @@ from koffer.persistence.migrations import apply_migrations
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
 from koffer.services.collections import CollectionService
+from koffer.services.metadata import MetadataService
 from koffer.services.playback import PlaybackService
+from koffer.services.samples import SampleService
 from koffer.services.search import SearchService
 from koffer.services.sources import SourceService
 
@@ -35,6 +37,8 @@ class AppContext:
     playback_service: PlaybackService
     waveform_cache: WaveformCache
     collection_service: CollectionService
+    metadata_service: MetadataService
+    sample_service: SampleService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -55,6 +59,8 @@ class AppContext:
         playback_service = PlaybackService()
         waveform_cache = WaveformCache(paths.cache_dir)
         collection_service = CollectionService(factory)
+        metadata_service = MetadataService(factory)
+        sample_service = SampleService(factory, metadata_service)
         return cls(
             paths=paths,
             connection_factory=factory,
@@ -64,6 +70,8 @@ class AppContext:
             playback_service=playback_service,
             waveform_cache=waveform_cache,
             collection_service=collection_service,
+            metadata_service=metadata_service,
+            sample_service=sample_service,
         )
 
     @classmethod

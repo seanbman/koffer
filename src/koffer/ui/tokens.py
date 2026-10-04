@@ -167,4 +167,39 @@ QHeaderView::section {{
     font-size: 10px;
     font-weight: 700;
 }}
+QFrame#provenanceTechnical {{
+    background-color: {SURFACE_1};
+    border: 1px solid {BLUE};
+    border-left: 3px solid {BLUE};
+    border-radius: 6px;
+}}
+QFrame#provenanceEmbedded {{
+    background-color: {SURFACE_1};
+    border: 1px solid {GREEN};
+    border-left: 3px solid {GREEN};
+    border-radius: 6px;
+}}
+QFrame#provenanceConfirmed {{
+    background-color: {SURFACE_1};
+    border: 1px solid {CLAY};
+    border-left: 3px solid {CLAY};
+    border-radius: 6px;
+}}
+QFrame#provenanceSuggested {{
+    background-color: {SURFACE_1};
+    border: 1px solid {YELLOW};
+    border-left: 3px solid {YELLOW};
+    border-radius: 6px;
+}}
+QFrame#provenanceTags {{
+    background-color: {SURFACE_1};
+    border: 1px solid {CLAY_BRIGHT};
+    border-left: 3px solid {CLAY_BRIGHT};
+    border-radius: 6px;
+}}
+QLabel#provenanceHeading {{
+    color: {TEXT};
+    font-size: 11px;
+    font-weight: 700;
+}}
 """

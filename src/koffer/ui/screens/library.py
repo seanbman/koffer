@@ -28,6 +28,7 @@ class LibraryBrowserScreen(QWidget):
     """S01: search/filter header + paged Sample table + Inspector (docs/12, docs/15)."""
 
     selection_changed = Signal(object, str)  # sample_id | None, name
+    open_sample_detail_requested = Signal(str)  # sample_id
 
     def __init__(
         self,
@@ -87,10 +88,21 @@ class LibraryBrowserScreen(QWidget):
         self._table.setAlternatingRowColors(True)
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
+        self._table.doubleClicked.connect(self._on_double_clicked)
         body.addWidget(self._table, stretch=1)
 
         self._inspector = InspectorPanel()
-        body.addWidget(self._inspector)
+        open_detail = QPushButton("Open Sample")
+        open_detail.setObjectName("openSampleDetailButton")
+        open_detail.clicked.connect(self._emit_open_detail)
+        inspector_column = QVBoxLayout()
+        inspector_column.setContentsMargins(0, 0, 0, 0)
+        inspector_column.setSpacing(8)
+        inspector_column.addWidget(self._inspector, stretch=1)
+        inspector_column.addWidget(open_detail)
+        inspector_wrap = QWidget()
+        inspector_wrap.setLayout(inspector_column)
+        body.addWidget(inspector_wrap)
         root.addLayout(body, stretch=1)
 
         self.refresh()
@@ -229,6 +241,14 @@ class LibraryBrowserScreen(QWidget):
         if self._auto_preview:
             self.load_selection_into_playback()
             self._context.playback_service.play()
+
+    def _on_double_clicked(self, *_args: object) -> None:
+        self._emit_open_detail()
+
+    def _emit_open_detail(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is not None:
+            self.open_sample_detail_requested.emit(sample_id)
 
 
 # Backward-compatible alias used by older Phase 2 shell imports.

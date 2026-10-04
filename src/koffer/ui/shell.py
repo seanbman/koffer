@@ -1,4 +1,4 @@
-"""Dark application shell with navigation, S00/S01/S03/S04/S05/S06, transport, shortcuts."""
+"""Dark application shell with navigation, S00–S07 foundations, transport, shortcuts."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from koffer.ui.picker import DirectoryPicker, native_directory_picker
 from koffer.ui.screens.collection_detail import CollectionDetailScreen
 from koffer.ui.screens.collections import CollectionsScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
+from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.welcome import WelcomeScreen
@@ -38,6 +39,7 @@ SCREEN_COLLECTIONS = "S03"
 SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
+SCREEN_SAMPLE_DETAIL = "S07"
 
 
 class MainWindow(QMainWindow):
@@ -91,6 +93,7 @@ class MainWindow(QMainWindow):
         self._collection_detail = CollectionDetailScreen(context.collection_service)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
+        self._sample_detail = SampleDetailScreen(context.sample_service)
 
         self._stack.addWidget(self._welcome)
         self._stack.addWidget(self._library)
@@ -98,6 +101,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._collection_detail)
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
+        self._stack.addWidget(self._sample_detail)
 
         self._welcome.add_source_requested.connect(self._pick_and_add_source)
         self._welcome.directory_dropped.connect(self._add_source_path)
@@ -107,6 +111,8 @@ class MainWindow(QMainWindow):
         self._collections.collection_selected.connect(self._open_collection_detail)
         self._collection_detail.back_requested.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
         self._library.selection_changed.connect(self._on_library_selection)
+        self._library.open_sample_detail_requested.connect(self._open_sample_detail)
+        self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
 
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
@@ -146,6 +152,7 @@ class MainWindow(QMainWindow):
             SCREEN_COLLECTION_DETAIL: self._collection_detail,
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
+            SCREEN_SAMPLE_DETAIL: self._sample_detail,
         }
         widget = mapping.get(screen_id)
         if widget is None:
@@ -160,6 +167,8 @@ class MainWindow(QMainWindow):
             self._sources.refresh()
         if screen_id == SCREEN_SOURCE_DETAIL:
             self._source_detail.refresh()
+        if screen_id == SCREEN_SAMPLE_DETAIL:
+            self._sample_detail.refresh()
         self._stack.setCurrentWidget(widget)
         self._current_screen = screen_id
         self._update_nav_checked()
@@ -243,6 +252,12 @@ class MainWindow(QMainWindow):
         self._collection_detail.show_collection(EntityId(collection_id))
         self.navigate(SCREEN_COLLECTION_DETAIL)
 
+    def _open_sample_detail(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        self._sample_detail.show_sample(EntityId(sample_id))
+        self.navigate(SCREEN_SAMPLE_DETAIL)
+
     def _focus_library_search(self) -> None:
         if self._current_screen != SCREEN_LIBRARY:
             self.navigate(SCREEN_LIBRARY)
@@ -265,6 +280,6 @@ def create_main_window(
     *,
     directory_picker: DirectoryPicker | None = None,
 ) -> MainWindow:
-    """Create the Phase 4 shell; builds a default AppContext when omitted."""
+    """Create the Phase 5 shell; builds a default AppContext when omitted."""
     ctx = context or AppContext.open_default()
     return MainWindow(ctx, directory_picker=directory_picker)

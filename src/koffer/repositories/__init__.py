@@ -8,6 +8,7 @@ from koffer.repositories.samples import SampleRepository
 from koffer.repositories.saved_searches import SavedSearchRepository
 from koffer.repositories.sources import SourceRepository
 from koffer.repositories.suggestions import SuggestionRepository
+from koffer.repositories.tags import TagRepository
 from koffer.repositories.technical_metadata import TechnicalMetadataRepository
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "SourceExclusionRepository",
     "SourceRepository",
     "SuggestionRepository",
+    "TagRepository",
     "TechnicalMetadataRepository",
 ]
