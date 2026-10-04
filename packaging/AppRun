@@ -1,0 +1,9 @@
+#!/bin/sh
+# Phase 0 placeholder AppRun. Real AppDir staging lands in a later packaging Order.
+set -eu
+HERE="$(dirname "$(readlink -f "$0")")"
+if [ ! -x "$HERE/usr/bin/koffer" ]; then
+  echo "koffer: packaged runtime missing under $HERE/usr/bin/koffer" >&2
+  exit 1
+fi
+exec "$HERE/usr/bin/koffer" "$@"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Koffer
+GenericName=Audio Sample Library
+Comment=Local-first audio sample library and preparation environment
+Exec=koffer
+Icon=koffer
+Terminal=false
+Categories=AudioVideo;Audio;Utility;
+StartupNotify=true
+StartupWMClass=Koffer

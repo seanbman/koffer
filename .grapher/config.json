@@ -1,0 +1,40 @@
+{
+  "profile": "software",
+  "domain": "agent-control-plane",
+  "kinds": [
+    "knowledge",
+    "implementation",
+    "decision",
+    "design",
+    "requirements",
+    "roadmap",
+    "retrospective"
+  ],
+  "stages": [
+    "ideation",
+    "designing",
+    "planning",
+    "developing",
+    "launching",
+    "maintaining"
+  ],
+  "custom_node_types": [
+    "dreadnought_action",
+    "dreadnought_artifact",
+    "dreadnought_claim",
+    "dreadnought_note",
+    "dreadnought_observation",
+    "dreadnought_requirement",
+    "dreadnought_risk",
+    "dreadnought_verdict"
+  ],
+  "custom_relations": {},
+  "custom_kinds": [],
+  "stage_aliases": {},
+  "status_rank_weights": {},
+  "checkpoint_definitions": [],
+  "component_link_rules": [],
+  "relation_aliases": {},
+  "require_explicit_status": true,
+  "truth_status_legacy_allowlist": []
+}
