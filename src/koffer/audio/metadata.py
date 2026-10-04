@@ -1,20 +1,40 @@
-"""Mutagen-backed embedded metadata reader and format capability adapter (docs/19)."""
+"""Mutagen-backed embedded metadata reader/writer and format capability adapter (docs/19)."""
 
 from __future__ import annotations
 
+import contextlib
+import os
+import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from mutagen import MutagenError
 from mutagen.aiff import AIFF
-from mutagen.flac import FLAC
-from mutagen.id3 import ID3, ID3NoHeaderError
+from mutagen.flac import FLAC, Picture
+from mutagen.id3 import (
+    APIC,
+    COMM,
+    ID3,
+    TALB,
+    TCOM,
+    TCON,
+    TCOP,
+    TDRC,
+    TIT2,
+    TPE1,
+    TPE2,
+    TRCK,
+    ID3NoHeaderError,
+)
 from mutagen.mp3 import MP3
-from mutagen.mp4 import MP4
+from mutagen.mp4 import MP4, MP4Cover
 from mutagen.oggvorbis import OggVorbis
 from mutagen.wave import WAVE
 
+from koffer.domain.errors import ValidationError
+from koffer.domain.metadata_write import ArtworkPayload
 from koffer.filesystem.extensions import normalize_extension
 
 # Normalized fields exposed by the capability adapter (docs/19).
@@ -399,3 +419,314 @@ def _read_mp4(audio: Any, format_id: str) -> EmbeddedMetadataSnapshot:
         has_artwork=has_artwork,
         ok=True,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class MetadataWriteResult:
+    """Outcome of a verified embedded metadata write."""
+
+    path: str
+    format_id: str
+    written_fields: dict[str, str | None]
+    artwork_changed: bool
+    has_artwork: bool
+    verified: bool
+    verification_fields: dict[str, str | None]
+
+
+def write_embedded(
+    path: Path,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None = None,
+    remove_artwork: bool = False,
+) -> MetadataWriteResult:
+    """Write supported embedded fields via temp-replace, then reread-verify.
+
+    Never catches a field-write exception and continues silently: any Mutagen/
+    OS failure aborts the item and leaves the original path untouched until the
+    verified temp file is atomically renamed into place.
+    """
+    target = Path(path)
+    caps = capabilities_for_path(target)
+    if not caps.supported:
+        raise ValidationError(
+            "format does not support embedded metadata writes",
+            detail=caps.limitations[0] if caps.limitations else caps.format_id,
+        )
+    if not target.is_file():
+        raise ValidationError("media path is not a writable file", detail=str(target))
+
+    text_fields = {name: value for name, value in fields.items() if name != "artwork"}
+    unknown = sorted(name for name in text_fields if name not in _TEXT_FIELDS)
+    if unknown:
+        raise ValidationError(
+            "unknown metadata fields cannot be written",
+            detail=",".join(unknown),
+        )
+    unsupported = sorted(name for name in text_fields if name not in caps.writable_fields)
+    if unsupported:
+        raise ValidationError(
+            "unsupported fields cannot be silently written",
+            detail=",".join(unsupported),
+        )
+    if (artwork is not None or remove_artwork) and not caps.artwork_support:
+        raise ValidationError(
+            "artwork writes are not supported for this format",
+            detail=caps.format_id,
+        )
+    if artwork is not None and remove_artwork:
+        raise ValidationError("cannot add/replace and remove artwork in one write")
+
+    # Preserve the real extension so capability/reread dispatch stays correct.
+    temp_name = f".koffer-meta-{uuid.uuid4().hex}-{target.name}"
+    temp_path = target.parent / temp_name
+    shutil.copy2(target, temp_path)
+    try:
+        _mutate_tags(
+            temp_path,
+            caps.format_id,
+            text_fields,
+            artwork=artwork,
+            remove_artwork=remove_artwork,
+        )
+        snapshot = read_embedded(temp_path)
+        if not snapshot.ok:
+            raise ValidationError(
+                "post-write reread failed",
+                detail=snapshot.error_message or snapshot.error_code or "reread_failed",
+            )
+        for name, expected in text_fields.items():
+            actual = snapshot.fields.get(name)
+            if _normalize_compare(expected) != _normalize_compare(actual):
+                raise ValidationError(
+                    "post-write verification mismatch",
+                    detail=f"{name}: expected={expected!r} actual={actual!r}",
+                )
+        if remove_artwork and snapshot.has_artwork:
+            raise ValidationError(
+                "post-write verification mismatch",
+                detail="artwork still present",
+            )
+        if artwork is not None and not snapshot.has_artwork:
+            raise ValidationError(
+                "post-write verification mismatch",
+                detail="artwork missing",
+            )
+
+        os.replace(temp_path, target)
+    except Exception:
+        if temp_path.exists():
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
+
+    final = read_embedded(target)
+    return MetadataWriteResult(
+        path=str(target),
+        format_id=caps.format_id,
+        written_fields=dict(text_fields),
+        artwork_changed=artwork is not None or remove_artwork,
+        has_artwork=final.has_artwork,
+        verified=True,
+        verification_fields=dict(final.fields),
+    )
+
+
+def _normalize_compare(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _mutate_tags(
+    path: Path,
+    format_id: str,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None,
+    remove_artwork: bool,
+) -> None:
+    """Apply field writes. Exceptions propagate — never swallowed per field."""
+    if format_id in {"wav", "aiff", "mp3"}:
+        _write_id3_format(path, format_id, fields, artwork=artwork, remove_artwork=remove_artwork)
+        return
+    if format_id == "flac":
+        _write_flac(path, fields, artwork=artwork, remove_artwork=remove_artwork)
+        return
+    if format_id == "ogg":
+        _write_ogg(path, fields)
+        return
+    if format_id == "m4a":
+        _write_mp4(path, fields, artwork=artwork, remove_artwork=remove_artwork)
+        return
+    raise ValidationError(f"No writer for format '{format_id}'")
+
+
+def _write_id3_format(
+    path: Path,
+    format_id: str,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None,
+    remove_artwork: bool,
+) -> None:
+    if format_id == "wav":
+        audio: Any = WAVE(str(path))  # type: ignore[no-untyped-call]
+    elif format_id == "aiff":
+        audio = AIFF(str(path))  # type: ignore[no-untyped-call]
+    else:
+        audio = MP3(str(path))  # type: ignore[no-untyped-call]
+        if audio.tags is None:
+            try:
+                audio.add_tags()
+            except Exception:
+                # Fall back to bare ID3 file attachment.
+                tags: Any = ID3()  # type: ignore[no-untyped-call]
+                _apply_id3_fields(tags, fields, artwork=artwork, remove_artwork=remove_artwork)
+                tags.save(str(path))
+                return
+
+    if audio.tags is None:
+        audio.add_tags()
+    tags = audio.tags
+    if not isinstance(tags, ID3):
+        # Replace non-ID3 mapping with a real ID3 instance when possible.
+        id3: Any = ID3()  # type: ignore[no-untyped-call]
+        _apply_id3_fields(id3, fields, artwork=artwork, remove_artwork=remove_artwork)
+        audio.tags = id3
+        audio.save()
+        return
+
+    _apply_id3_fields(tags, fields, artwork=artwork, remove_artwork=remove_artwork)
+    audio.save()
+
+
+_ID3_FRAME_CTORS: dict[str, Any] = {
+    "title": TIT2,
+    "artist": TPE1,
+    "album": TALB,
+    "album_artist": TPE2,
+    "genre": TCON,
+    "date": TDRC,
+    "track_number": TRCK,
+    "composer": TCOM,
+    "copyright": TCOP,
+}
+
+
+def _apply_id3_fields(
+    tags: Any,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None,
+    remove_artwork: bool,
+) -> None:
+    for field, value in fields.items():
+        if field == "comment":
+            tags.delall("COMM")
+            if value is not None and value.strip():
+                tags.add(
+                    COMM(encoding=3, lang="eng", desc="", text=[value])  # type: ignore[no-untyped-call]
+                )
+            continue
+        frame_id = _ID3_FRAMES[field]
+        ctor = _ID3_FRAME_CTORS[field]
+        tags.delall(frame_id)
+        if value is not None and value.strip():
+            tags.add(ctor(encoding=3, text=[value]))
+    if remove_artwork:
+        tags.delall("APIC")
+    elif artwork is not None:
+        tags.delall("APIC")
+        tags.add(
+            APIC(  # type: ignore[no-untyped-call]
+                encoding=3,
+                mime=artwork.mime,
+                type=3,
+                desc="Cover",
+                data=artwork.data,
+            )
+        )
+
+
+def _write_flac(
+    path: Path,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None,
+    remove_artwork: bool,
+) -> None:
+    audio: Any = FLAC(str(path))  # type: ignore[no-untyped-call]
+    for field, value in fields.items():
+        keys = _VORBIS_KEYS[field]
+        for key in keys:
+            if key in audio:
+                del audio[key]
+        if value is not None and value.strip():
+            audio[keys[0]] = [value]
+    if remove_artwork:
+        audio.clear_pictures()
+    elif artwork is not None:
+        audio.clear_pictures()
+        picture: Any = Picture()  # type: ignore[no-untyped-call]
+        picture.type = 3
+        picture.mime = artwork.mime
+        picture.desc = "Cover"
+        picture.data = artwork.data
+        audio.add_picture(picture)
+    audio.save()
+
+
+def _write_ogg(path: Path, fields: dict[str, str | None]) -> None:
+    audio: Any = OggVorbis(str(path))  # type: ignore[no-untyped-call]
+    for field, value in fields.items():
+        keys = _VORBIS_KEYS[field]
+        for key in keys:
+            if key in audio:
+                del audio[key]
+        if value is not None and value.strip():
+            audio[keys[0]] = [value]
+    audio.save()
+
+
+def _write_mp4(
+    path: Path,
+    fields: dict[str, str | None],
+    *,
+    artwork: ArtworkPayload | None,
+    remove_artwork: bool,
+) -> None:
+    audio: Any = MP4(str(path))  # type: ignore[no-untyped-call]
+    if audio.tags is None:
+        audio.add_tags()
+    assert audio.tags is not None
+    for field, value in fields.items():
+        key = _MP4_KEYS[field]
+        if key in audio.tags:
+            del audio.tags[key]
+        if value is None or not value.strip():
+            continue
+        if field == "track_number":
+            try:
+                number = int(value.split("/")[0])
+            except ValueError as exc:
+                raise ValidationError(
+                    "track_number must be an integer for M4A",
+                    detail=value,
+                ) from exc
+            audio.tags[key] = [(number, 0)]
+        else:
+            audio.tags[key] = [value]
+    if remove_artwork:
+        if "covr" in audio.tags:
+            del audio.tags["covr"]
+    elif artwork is not None:
+        fmt = MP4Cover.FORMAT_JPEG
+        if artwork.mime.lower() in {"image/png", "png"}:
+            fmt = MP4Cover.FORMAT_PNG
+        audio.tags["covr"] = [
+            MP4Cover(artwork.data, imageformat=fmt)  # type: ignore[no-untyped-call]
+        ]
+    audio.save()

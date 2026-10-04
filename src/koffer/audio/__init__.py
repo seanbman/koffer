@@ -12,9 +12,11 @@ from koffer.audio.metadata import (
     NORMALIZED_FIELDS,
     EmbeddedMetadataSnapshot,
     FormatCapabilities,
+    MetadataWriteResult,
     capabilities_for_extension,
     capabilities_for_path,
     read_embedded,
+    write_embedded,
 )
 from koffer.audio.wav_fixtures import (
     generate_default_set,
@@ -40,6 +42,7 @@ __all__ = [
     "FfprobeError",
     "FfprobeNotFoundError",
     "FormatCapabilities",
+    "MetadataWriteResult",
     "PeakEnvelope",
     "ProbeResult",
     "WaveformCache",
@@ -50,6 +53,7 @@ __all__ = [
     "probe_file",
     "read_embedded",
     "resolve_ffprobe",
+    "write_embedded",
     "write_malformed_wav",
     "write_silence_wav",
     "write_sine_wav",

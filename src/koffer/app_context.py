@@ -62,7 +62,7 @@ class AppContext:
         playback_service = PlaybackService()
         waveform_cache = WaveformCache(paths.cache_dir)
         collection_service = CollectionService(factory)
-        metadata_service = MetadataService(factory)
+        metadata_service = MetadataService(factory, scheduler)
         sample_service = SampleService(factory, metadata_service)
         file_operation_service = FileOperationService(factory, scheduler)
         return cls(

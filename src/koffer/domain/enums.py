@@ -118,6 +118,21 @@ class FileOperationKind(StrEnum):
     MOVE = "move"
 
 
+class MetadataWriteTarget(StrEnum):
+    """Explicit embedded metadata write target (docs/05, docs/19, docs/27)."""
+
+    UPDATE_ORIGINAL = "update_original"
+    WRITE_TO_COPY = "write_to_copy"
+
+
+class ArtworkAction(StrEnum):
+    """Artwork mutation requested with a metadata write plan."""
+
+    KEEP = "keep"
+    ADD_REPLACE = "add_replace"
+    REMOVE = "remove"
+
+
 class ConflictAction(StrEnum):
     """Per-item / default destination conflict resolution (docs/03, docs/28)."""
 

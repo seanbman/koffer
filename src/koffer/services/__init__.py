@@ -11,7 +11,10 @@ from koffer.services.file_operations import (
     FileOperationService,
     PlannedFileItem,
 )
-from koffer.services.metadata import MetadataCapabilities, MetadataService
+from koffer.services.metadata import (
+    MetadataCapabilities,
+    MetadataService,
+)
 from koffer.services.playback import PlaybackService, PlaybackState
 from koffer.services.samples import ProvenanceCategory, SampleDetail, SampleService
 from koffer.services.search import SearchService

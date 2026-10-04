@@ -1,4 +1,4 @@
-"""Dark application shell with navigation, S00–S07/S12/S13/S16 foundations, transport, shortcuts."""
+"""Dark application shell with S00–S07/S09/S12/S13/S16 foundations and transport."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from koffer.ui.screens.collections import CollectionsScreen
 from koffer.ui.screens.conflicts import ConflictsScreen
 from koffer.ui.screens.import_review import ImportReviewScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
+from koffer.ui.screens.metadata_editor import MetadataEditorScreen
 from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
@@ -44,6 +45,7 @@ SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
 SCREEN_SAMPLE_DETAIL = "S07"
+SCREEN_METADATA_EDITOR = "S09"
 SCREEN_IMPORT_REVIEW = "S12"
 SCREEN_CONFLICTS = "S13"
 SCREEN_ACTIVITY = "S16"
@@ -101,6 +103,7 @@ class MainWindow(QMainWindow):
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
         self._sample_detail = SampleDetailScreen(context.sample_service)
+        self._metadata_editor = MetadataEditorScreen(context.metadata_service)
         self._import_review = ImportReviewScreen(context.file_operation_service)
         self._conflicts = ConflictsScreen(context.file_operation_service)
         self._activity = ActivityCenterScreen(context.scheduler)
@@ -112,6 +115,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
         self._stack.addWidget(self._sample_detail)
+        self._stack.addWidget(self._metadata_editor)
         self._stack.addWidget(self._import_review)
         self._stack.addWidget(self._conflicts)
         self._stack.addWidget(self._activity)
@@ -126,6 +130,9 @@ class MainWindow(QMainWindow):
         self._library.selection_changed.connect(self._on_library_selection)
         self._library.open_sample_detail_requested.connect(self._open_sample_detail)
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
+        self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
+        self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
+        self._metadata_editor.execute_requested.connect(self._execute_metadata_plan)
         self._import_review.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._import_review.resolve_conflicts_requested.connect(self._open_conflicts_from_review)
         self._import_review.execute_requested.connect(self._execute_import_plan)
@@ -175,6 +182,9 @@ class MainWindow(QMainWindow):
     def conflicts(self) -> ConflictsScreen:
         return self._conflicts
 
+    def metadata_editor(self) -> MetadataEditorScreen:
+        return self._metadata_editor
+
     def current_screen_id(self) -> str:
         return self._current_screen
 
@@ -182,6 +192,11 @@ class MainWindow(QMainWindow):
         """Present S12 with a planned Reference/Copy/Move operation."""
         self._import_review.show_plan(plan)
         self.navigate(SCREEN_IMPORT_REVIEW)
+
+    def open_metadata_editor(self, sample_ids: list[EntityId]) -> None:
+        """Present S09 for the given Sample ids."""
+        self._metadata_editor.show_samples(sample_ids)
+        self.navigate(SCREEN_METADATA_EDITOR)
 
     def navigate(self, screen_id: str) -> None:
         mapping = {
@@ -192,6 +207,7 @@ class MainWindow(QMainWindow):
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
             SCREEN_SAMPLE_DETAIL: self._sample_detail,
+            SCREEN_METADATA_EDITOR: self._metadata_editor,
             SCREEN_IMPORT_REVIEW: self._import_review,
             SCREEN_CONFLICTS: self._conflicts,
             SCREEN_ACTIVITY: self._activity,
@@ -211,6 +227,8 @@ class MainWindow(QMainWindow):
             self._source_detail.refresh()
         if screen_id == SCREEN_SAMPLE_DETAIL:
             self._sample_detail.refresh()
+        if screen_id == SCREEN_METADATA_EDITOR:
+            self._metadata_editor.refresh()
         if screen_id == SCREEN_IMPORT_REVIEW:
             self._import_review.refresh()
         if screen_id == SCREEN_CONFLICTS:
@@ -312,6 +330,23 @@ class MainWindow(QMainWindow):
             sample_id = str(sample_id)
         self._sample_detail.show_sample(EntityId(sample_id))
         self.navigate(SCREEN_SAMPLE_DETAIL)
+
+    def _open_metadata_editor(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        self.open_metadata_editor([EntityId(sample_id)])
+
+    def _execute_metadata_plan(self) -> None:
+        plan = self._metadata_editor.plan
+        if plan is None:
+            return
+        try:
+            job_id = self._context.metadata_service.execute(plan)
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not execute metadata write", str(exc))
+            return
+        del job_id
+        self.navigate(SCREEN_ACTIVITY)
 
     def _open_conflicts_from_review(self) -> None:
         plan = self._import_review.plan

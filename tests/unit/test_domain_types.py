@@ -6,9 +6,11 @@ import uuid
 
 from koffer.domain import (
     TIMESTAMP_CONVENTION,
+    ArtworkAction,
     ClassificationDimension,
     JobState,
     JobType,
+    MetadataWriteTarget,
     SampleAvailability,
     ScanMode,
     SourceStatus,
@@ -25,7 +27,11 @@ def test_core_enums_expose_documented_values() -> None:
     assert SuggestionStatus.PENDING == "pending"
     assert JobState.QUEUED == "queued"
     assert JobType.SOURCE_SCAN == "source_scan"
+    assert JobType.METADATA_WRITE == "metadata_write"
     assert ScanMode.INCREMENTAL == "incremental"
+    assert MetadataWriteTarget.UPDATE_ORIGINAL == "update_original"
+    assert MetadataWriteTarget.WRITE_TO_COPY == "write_to_copy"
+    assert ArtworkAction.REMOVE == "remove"
 
 
 def test_new_entity_id_is_uuid_v4_text() -> None:
