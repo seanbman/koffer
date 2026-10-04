@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from koffer.domain.enums import (
+    ClassificationDimension,
+    ClassificationSource,
     JobState,
     JobType,
     SampleAvailability,
@@ -69,6 +71,19 @@ class Collection:
     description: str | None = None
     color: str | None = None
     artwork_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Classification:
+    """User-confirmed library classification (never filesystem mutation)."""
+
+    id: EntityId
+    sample_id: EntityId
+    dimension: ClassificationDimension
+    value: str
+    source: ClassificationSource
+    created_at: str
+    updated_at: str
 
 
 @dataclass(frozen=True, slots=True)

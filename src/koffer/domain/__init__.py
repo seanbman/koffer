@@ -15,6 +15,7 @@ from koffer.domain.enums import (
 )
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import (
+    Classification,
     Collection,
     Job,
     Sample,
@@ -26,6 +27,7 @@ from koffer.domain.timestamps import TIMESTAMP_CONVENTION, utc_now_iso
 __all__ = [
     "TIMESTAMP_CONVENTION",
     "AnalysisRunState",
+    "Classification",
     "ClassificationDimension",
     "ClassificationSource",
     "Collection",
