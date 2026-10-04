@@ -1,14 +1,16 @@
-"""Application composition root: paths, DB, scheduler, Source/Search services."""
+"""Application composition root: paths, DB, scheduler, Source/Search/Playback."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
+from koffer.audio.waveform import WaveformCache
 from koffer.config.paths import AppPaths, resolve_app_paths
 from koffer.jobs.scheduler import JobScheduler
 from koffer.persistence.connection import ConnectionFactory
 from koffer.persistence.migrations import apply_migrations
+from koffer.services.playback import PlaybackService
 from koffer.services.search import SearchService
 from koffer.services.sources import SourceService
 
@@ -18,6 +20,7 @@ class AppContext:
     """Owns durable infrastructure for the UI shell.
 
     UI widgets receive this context and must not open SQL connections themselves.
+    UI must not touch QMediaPlayer outside ``playback_service``.
     """
 
     paths: AppPaths
@@ -25,6 +28,8 @@ class AppContext:
     scheduler: JobScheduler
     source_service: SourceService
     search_service: SearchService
+    playback_service: PlaybackService
+    waveform_cache: WaveformCache
     _owns_scheduler: bool = True
 
     @classmethod
@@ -42,12 +47,16 @@ class AppContext:
         scheduler = JobScheduler(factory, io_workers=io_workers)
         source_service = SourceService(factory, scheduler)
         search_service = SearchService(factory)
+        playback_service = PlaybackService()
+        waveform_cache = WaveformCache(paths.cache_dir)
         return cls(
             paths=paths,
             connection_factory=factory,
             scheduler=scheduler,
             source_service=source_service,
             search_service=search_service,
+            playback_service=playback_service,
+            waveform_cache=waveform_cache,
         )
 
     @classmethod
@@ -69,4 +78,5 @@ class AppContext:
     def close(self) -> None:
         if self._owns_scheduler:
             self.scheduler.shutdown(wait=False)
+        self.playback_service.stop()
         self.connection_factory.close_thread_connection()
