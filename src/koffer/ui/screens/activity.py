@@ -19,6 +19,7 @@ from koffer.domain.ids import EntityId
 from koffer.jobs.activity import JobSummary, group_summaries
 from koffer.jobs.scheduler import JobScheduler
 from koffer.ui.tokens import BLUE, BORDER, CLAY, FAINT, GREEN, MUTED, RED, YELLOW
+from koffer.ui.widgets.content_state import ContentStatePanel
 
 _GROUP_ORDER = (
     ActivityGroup.RUNNING,
@@ -101,11 +102,11 @@ class ActivityCenterScreen(QWidget):
         actions.addWidget(self._cancel_btn)
         root.addLayout(actions)
 
-        self._empty = QLabel("No Jobs yet. Scans and analysis appear here while they run.")
-        self._empty.setObjectName("bodyText")
-        root.addWidget(self._empty)
+        self._state_panel = ContentStatePanel()
+        root.addWidget(self._state_panel)
 
     def refresh(self) -> None:
+        self._state_panel.show_loading("Loading Jobs…")
         jobs = self._scheduler.list()
         grouped = group_summaries(jobs)
         self._badge_running.setText(f"{len(grouped[ActivityGroup.RUNNING])} RUNNING")
@@ -127,8 +128,18 @@ class ActivityCenterScreen(QWidget):
                 self._list.addItem(self._make_row(summary))
                 total_rows += 1
 
-        self._empty.setVisible(total_rows == 0)
-        self._list.setVisible(total_rows > 0)
+        if total_rows == 0:
+            self._list.setVisible(False)
+            self._state_panel.show_empty(
+                "No Jobs yet",
+                (
+                    "Scans and analysis appear here while they run. "
+                    "Closing this screen does not cancel work."
+                ),
+            )
+        else:
+            self._state_panel.clear()
+            self._list.setVisible(True)
 
     def _make_row(self, summary: JobSummary) -> QListWidgetItem:
         job = summary.job

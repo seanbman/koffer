@@ -1,14 +1,14 @@
 .PHONY: lint typecheck test qa clean
 
 lint:
-	uv run ruff check .
-	uv run ruff format --check .
+	uv run --no-sync python -m ruff check .
+	uv run --no-sync python -m ruff format --check .
 
 typecheck:
-	uv run mypy src/koffer
+	uv run --no-sync python -m mypy src/koffer
 
 test:
-	QT_QPA_PLATFORM=offscreen uv run pytest -q
+	QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q
 
 qa: lint typecheck test
 

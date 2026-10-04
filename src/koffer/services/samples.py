@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
@@ -11,6 +11,7 @@ from koffer.audio.metadata import EmbeddedMetadataSnapshot
 from koffer.domain.errors import NotFoundError
 from koffer.domain.ids import EntityId
 from koffer.domain.models import Classification, Sample, Suggestion, TechnicalMetadata
+from koffer.domain.timestamps import utc_now_iso
 from koffer.persistence.connection import ConnectionFactory
 from koffer.repositories.classifications import ClassificationRepository
 from koffer.repositories.samples import SampleRepository
@@ -122,6 +123,25 @@ class SampleService:
             has_preparation_recipe=has_recipe,
             capabilities=capabilities,
         )
+
+    def set_favorite(self, sample_id: EntityId, favorite: bool) -> Sample:
+        """Toggle favourite flag without touching audio files (docs/27)."""
+        conn = self._factory.get_connection()
+        repo = SampleRepository(conn)
+        sample = repo.get(sample_id)
+        if sample is None:
+            raise NotFoundError(f"Sample not found: {sample_id}")
+        updated = replace(sample, favorite=bool(favorite), updated_at=utc_now_iso())
+        repo.update(updated)
+        return updated
+
+    def toggle_favorite(self, sample_id: EntityId) -> Sample:
+        """Invert the favourite flag for the given Sample."""
+        conn = self._factory.get_connection()
+        sample = SampleRepository(conn).get(sample_id)
+        if sample is None:
+            raise NotFoundError(f"Sample not found: {sample_id}")
+        return self.set_favorite(sample_id, not sample.favorite)
 
     @staticmethod
     def _has_preparation_recipe(conn: sqlite3.Connection, sample_id: EntityId) -> bool:

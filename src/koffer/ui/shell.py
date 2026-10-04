@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -44,6 +45,7 @@ from koffer.ui.screens.suggestions_review import SuggestionsReviewScreen
 from koffer.ui.screens.welcome import WelcomeScreen
 from koffer.ui.tokens import CANVAS, CLAY, SHELL_STYLESHEET
 from koffer.ui.widgets.transport import TransportBar
+from koffer.ui.window_geometry import WindowGeometryStore
 
 WINDOW_TITLE = "Koffer"
 CANVAS_COLOR = CANVAS
@@ -80,14 +82,19 @@ class MainWindow(QMainWindow):
         *,
         directory_picker: DirectoryPicker | None = None,
         parent: QWidget | None = None,
+        restore_geometry: bool = True,
     ) -> None:
         super().__init__(parent)
         self._context = context
         self._directory_picker = directory_picker or native_directory_picker
         self._current_screen = SCREEN_WELCOME
+        self._geometry_store = WindowGeometryStore(context.paths.config_dir)
+        self._restore_geometry = restore_geometry
+        self._geometry_applied = False
 
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(1440, 900)
+        self.setMinimumSize(1180, 720)
         self.setStyleSheet(SHELL_STYLESHEET)
 
         shell = QWidget()
@@ -169,6 +176,9 @@ class MainWindow(QMainWindow):
         self._collection_detail.back_requested.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
         self._library.selection_changed.connect(self._on_library_selection)
         self._library.open_sample_detail_requested.connect(self._open_sample_detail)
+        self._library.prepare_requested.connect(self._open_sample_preparation)
+        self._library.edit_metadata_requested.connect(self._open_metadata_editor)
+        self._library.find_similar_requested.connect(self._open_similar_sounds)
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
         self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
@@ -194,24 +204,51 @@ class MainWindow(QMainWindow):
             lambda: self.navigate(SCREEN_SETTINGS_AUDIO)
         )
 
+        self._install_global_shortcuts()
+
+        self.setCentralWidget(shell)
+        # Geometry is applied on first showEvent so offscreen sizes stick.
+        self._sync_initial_route()
+
+    def _install_global_shortcuts(self) -> None:
+        """Default global shortcuts from docs/28."""
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
+        self._focus_search_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._focus_search_shortcut.activated.connect(self._focus_library_search)
+
+        self._add_source_shortcut = QShortcut(QKeySequence("Ctrl+O"), self)
+        self._add_source_shortcut.setObjectName("addSourceShortcut")
+        self._add_source_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._add_source_shortcut.activated.connect(self._pick_and_add_source)
+
+        self._settings_shortcut = QShortcut(QKeySequence("Ctrl+,"), self)
+        self._settings_shortcut.setObjectName("settingsShortcut")
+        self._settings_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._settings_shortcut.activated.connect(lambda: self.navigate(SCREEN_SETTINGS_GENERAL))
 
         self._activity_shortcut = QShortcut(QKeySequence("Ctrl+Shift+A"), self)
         self._activity_shortcut.setObjectName("activityCenterShortcut")
+        self._activity_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._activity_shortcut.activated.connect(lambda: self.navigate(SCREEN_ACTIVITY))
 
-        self._suggestions_shortcut = QShortcut(QKeySequence("Ctrl+Shift+S"), self)
-        self._suggestions_shortcut.setObjectName("suggestionsReviewShortcut")
-        self._suggestions_shortcut.activated.connect(lambda: self.navigate(SCREEN_SUGGESTIONS))
+        self._quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
+        self._quit_shortcut.setObjectName("quitShortcut")
+        self._quit_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._quit_shortcut.activated.connect(self.close)
 
-        self.setCentralWidget(shell)
-        self._sync_initial_route()
+        self._escape_shortcut = QShortcut(QKeySequence("Escape"), self)
+        self._escape_shortcut.setObjectName("escapeShortcut")
+        self._escape_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._escape_shortcut.activated.connect(self._handle_escape)
 
     @property
     def context(self) -> AppContext:
         return self._context
+
+    @property
+    def geometry_store(self) -> WindowGeometryStore:
+        return self._geometry_store
 
     @property
     def transport(self) -> TransportBar:
@@ -255,6 +292,28 @@ class MainWindow(QMainWindow):
 
     def current_screen_id(self) -> str:
         return self._current_screen
+
+    def persist_geometry(self) -> None:
+        """Save window and library pane geometry to XDG config."""
+        self._geometry_store.save_window(self)
+        self._geometry_store.save_splitter("library", self._library.splitter)
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 — Qt API
+        super().showEvent(event)
+        if self._restore_geometry and not self._geometry_applied:
+            self._apply_persisted_geometry()
+            self._geometry_applied = True
+
+    def _apply_persisted_geometry(self) -> None:
+        self._geometry_store.restore_window(self)
+        if not self._geometry_store.restore_splitter("library", self._library.splitter):
+            sizes = self._geometry_store.load_splitter_sizes("library")
+            if sizes:
+                self._library.splitter.setSizes(sizes)
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 — Qt API
+        self.persist_geometry()
+        super().closeEvent(event)
 
     def open_file_operation_plan(self, plan: FileOperationPlan) -> None:
         """Present S12 with a planned Reference/Copy/Move operation."""
@@ -576,6 +635,45 @@ class MainWindow(QMainWindow):
     def focus_library_search(self) -> None:
         """Public Ctrl+F target used by shortcut and tests."""
         self._focus_library_search()
+
+    def trigger_focus_search_shortcut(self) -> None:
+        """Activate the docs/28 Ctrl+F binding (deterministic offscreen path)."""
+        self._focus_search_shortcut.activated.emit()
+
+    def _handle_escape(self) -> None:
+        if self._current_screen == SCREEN_LIBRARY and self._library.clear_search_or_defocus():
+            return
+        if self._current_screen in {
+            SCREEN_SAMPLE_DETAIL,
+            SCREEN_SAMPLE_PREPARATION,
+            SCREEN_METADATA_EDITOR,
+            SCREEN_SIMILAR_SOUNDS,
+            SCREEN_IMPORT_REVIEW,
+            SCREEN_CONFLICTS,
+            SCREEN_RENDER_EXPORT,
+            SCREEN_SOURCE_DETAIL,
+            SCREEN_COLLECTION_DETAIL,
+            SCREEN_SUGGESTIONS,
+            SCREEN_SETTINGS_LIBRARY,
+            SCREEN_SETTINGS_AUDIO,
+        }:
+            if self._current_screen == SCREEN_SOURCE_DETAIL:
+                self.navigate(SCREEN_SOURCES)
+            elif self._current_screen == SCREEN_COLLECTION_DETAIL:
+                self.navigate(SCREEN_COLLECTIONS)
+            elif self._current_screen in {SCREEN_SETTINGS_LIBRARY, SCREEN_SETTINGS_AUDIO}:
+                self.navigate(SCREEN_SETTINGS_GENERAL)
+            elif self._current_screen in {
+                SCREEN_SAMPLE_PREPARATION,
+                SCREEN_METADATA_EDITOR,
+                SCREEN_SIMILAR_SOUNDS,
+                SCREEN_RENDER_EXPORT,
+            }:
+                self.navigate(SCREEN_SAMPLE_DETAIL)
+            elif self._current_screen == SCREEN_CONFLICTS:
+                self.navigate(SCREEN_IMPORT_REVIEW)
+            else:
+                self.navigate(SCREEN_LIBRARY)
 
     def _on_library_selection(self, sample_id: object, name: object) -> None:
         sid = None if sample_id is None else str(sample_id)

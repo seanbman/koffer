@@ -70,6 +70,24 @@ class SampleFilters:
     channels: tuple[int, ...] = ()
     keys: tuple[str, ...] = ()
 
+    def is_empty(self) -> bool:
+        return (
+            not self.sample_type
+            and not self.instrument_source
+            and not self.musical_role
+            and not self.genre_style
+            and not self.character
+            and self.bpm.is_empty()
+            and self.duration_ms.is_empty()
+            and not self.extensions
+            and not self.availability
+            and not self.source_ids
+            and not self.collection_ids
+            and self.favorite is None
+            and not self.channels
+            and not self.keys
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class SampleQuery:

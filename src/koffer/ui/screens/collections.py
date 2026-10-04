@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.services.collections import CollectionListItem, CollectionService
-from koffer.ui.tokens import MUTED
+from koffer.ui.widgets.content_state import ContentStatePanel
 
 
 class CollectionsScreen(QWidget):
@@ -77,18 +77,29 @@ class CollectionsScreen(QWidget):
         self._list.itemDoubleClicked.connect(self._on_item_activated)
         root.addWidget(self._list, stretch=1)
 
-        self._empty = QLabel("No Collections yet. Create one to organize Samples.")
-        self._empty.setObjectName("bodyText")
-        self._empty.setStyleSheet(f"color: {MUTED};")
-        root.addWidget(self._empty)
+        self._state_panel = ContentStatePanel()
+        root.addWidget(self._state_panel)
 
     def refresh(self) -> None:
         self._list.clear()
-        items = self._collection_service.list_with_counts()
-        self._empty.setVisible(len(items) == 0)
-        self._list.setVisible(len(items) > 0)
-        for item in items:
-            self._list.addItem(self._make_row(item))
+        self._state_panel.show_loading("Loading Collections…")
+        try:
+            items = self._collection_service.list_with_counts()
+        except ApplicationError as exc:
+            self._list.setVisible(False)
+            self._state_panel.show_error("Collections unavailable", str(exc))
+            return
+        if len(items) == 0:
+            self._list.setVisible(False)
+            self._state_panel.show_empty(
+                "No Collections yet",
+                "Create one to organize Samples without copying or moving audio files.",
+            )
+        else:
+            self._state_panel.clear()
+            self._list.setVisible(True)
+            for item in items:
+                self._list.addItem(self._make_row(item))
 
     def selected_collection_id(self) -> EntityId | None:
         item = self._list.currentItem()

@@ -5,11 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
+    QMenu,
+    QMessageBox,
     QPushButton,
+    QSplitter,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -19,7 +24,9 @@ from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.domain.query import SampleFilters, SampleQuery
+from koffer.services.playback import PlaybackState
 from koffer.ui.models.sample_table import SampleTableModel
+from koffer.ui.widgets.content_state import ContentState, ContentStatePanel
 from koffer.ui.widgets.filter_panel import FilterPanel
 from koffer.ui.widgets.inspector import InspectorPanel
 
@@ -29,6 +36,12 @@ class LibraryBrowserScreen(QWidget):
 
     selection_changed = Signal(object, str)  # sample_id | None, name
     open_sample_detail_requested = Signal(str)  # sample_id
+    play_requested = Signal(str)
+    prepare_requested = Signal(str)
+    edit_metadata_requested = Signal(str)
+    find_similar_requested = Signal(str)
+    add_to_collection_requested = Signal(str)
+    favourite_changed = Signal(str, bool)
 
     def __init__(
         self,
@@ -76,8 +89,15 @@ class LibraryBrowserScreen(QWidget):
         self._filter_panel.filters_changed.connect(self._on_filters_changed)
         root.addWidget(self._filter_panel)
 
+        self._state_panel = ContentStatePanel()
+        root.addWidget(self._state_panel)
+
         body = QHBoxLayout()
         body.setSpacing(0)
+
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setObjectName("libraryPaneSplitter")
+        self._splitter.setChildrenCollapsible(False)
 
         self._table = QTableView()
         self._table.setObjectName("sampleTable")
@@ -87,9 +107,11 @@ class LibraryBrowserScreen(QWidget):
         self._table.setSortingEnabled(False)
         self._table.setAlternatingRowColors(True)
         self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
         self._table.doubleClicked.connect(self._on_double_clicked)
-        body.addWidget(self._table, stretch=1)
+        self._splitter.addWidget(self._table)
 
         self._inspector = InspectorPanel()
         open_detail = QPushButton("Open Sample")
@@ -101,11 +123,35 @@ class LibraryBrowserScreen(QWidget):
         inspector_column.addWidget(self._inspector, stretch=1)
         inspector_column.addWidget(open_detail)
         inspector_wrap = QWidget()
+        inspector_wrap.setObjectName("libraryInspectorColumn")
         inspector_wrap.setLayout(inspector_column)
-        body.addWidget(inspector_wrap)
+        self._splitter.addWidget(inspector_wrap)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        self._splitter.setSizes([900, 340])
+
+        body.addWidget(self._splitter, stretch=1)
         root.addLayout(body, stretch=1)
 
+        self._install_sample_shortcuts()
         self.refresh()
+
+    def _install_sample_shortcuts(self) -> None:
+        """Docs/28 Sample browser shortcuts (active while this screen is focused)."""
+        bindings: list[tuple[str, str, object]] = [
+            ("Space", "libraryPlayShortcut", self._action_play),
+            ("Return", "libraryOpenDetailShortcut", self._emit_open_detail),
+            ("Ctrl+D", "libraryFavouriteShortcut", self._action_favourite),
+            ("Ctrl+Shift+C", "libraryAddCollectionShortcut", self._action_add_to_collection),
+            ("Ctrl+Shift+S", "libraryFindSimilarShortcut", self._action_find_similar),
+            ("Ctrl+M", "libraryEditMetadataShortcut", self._action_edit_metadata),
+            ("Ctrl+P", "libraryPrepareShortcut", self._action_prepare),
+        ]
+        for sequence, object_name, slot in bindings:
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setObjectName(object_name)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
 
     @property
     def model(self) -> SampleTableModel:
@@ -123,17 +169,45 @@ class LibraryBrowserScreen(QWidget):
     def table(self) -> QTableView:
         return self._table
 
+    @property
+    def splitter(self) -> QSplitter:
+        return self._splitter
+
+    @property
+    def state_panel(self) -> ContentStatePanel:
+        return self._state_panel
+
+    @property
+    def search_field(self) -> QLineEdit:
+        return self._search_field
+
     def focus_search(self) -> None:
         self._search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
         self._search_field.selectAll()
 
+    def clear_search_or_defocus(self) -> bool:
+        """Escape while search focused: clear text once, then return focus to table."""
+        if not self._search_field.hasFocus():
+            return False
+        if self._search_field.text():
+            self._search_field.clear()
+            return True
+        self._table.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        return True
+
     def refresh(self) -> None:
         """Reload counts/rows for the active query (e.g. after a scan)."""
         selected = self._selected_sample_id()
-        self._model.refresh()
-        self._sync_count()
-        if selected is not None:
-            self._restore_selection(selected)
+        self._state_panel.show_loading("Refreshing library…")
+        try:
+            self._model.refresh()
+            self._sync_count()
+            if selected is not None:
+                self._restore_selection(selected)
+            self._sync_content_state()
+        except ApplicationError as exc:
+            self._state_panel.show_error("Library refresh failed", str(exc))
+            self._table.setVisible(False)
 
     def selected_sample_id(self) -> str | None:
         return self._selected_sample_id()
@@ -154,6 +228,55 @@ class LibraryBrowserScreen(QWidget):
         except ApplicationError:
             return
 
+    def build_sample_context_menu(self) -> QMenu:
+        """Sample actions from docs/28 — used by context menu and tests."""
+        menu = QMenu(self)
+        menu.setObjectName("sampleContextMenu")
+        sample_id = self._selected_sample_id()
+        enabled = sample_id is not None
+
+        play = QAction("Play / Pause", menu)
+        play.setObjectName("sampleContextPlay")
+        play.setEnabled(enabled)
+        play.triggered.connect(self._action_play)
+        menu.addAction(play)
+
+        favourite = QAction("Favourite", menu)
+        favourite.setObjectName("sampleContextFavourite")
+        favourite.setEnabled(enabled)
+        favourite.triggered.connect(self._action_favourite)
+        menu.addAction(favourite)
+
+        add_collection = QAction("Add to Collection…", menu)
+        add_collection.setObjectName("sampleContextAddToCollection")
+        add_collection.setEnabled(enabled)
+        add_collection.triggered.connect(self._action_add_to_collection)
+        menu.addAction(add_collection)
+
+        prepare = QAction("Prepare…", menu)
+        prepare.setObjectName("sampleContextPrepare")
+        prepare.setEnabled(enabled)
+        prepare.triggered.connect(self._action_prepare)
+        menu.addAction(prepare)
+
+        edit_metadata = QAction("Edit Metadata…", menu)
+        edit_metadata.setObjectName("sampleContextEditMetadata")
+        edit_metadata.setEnabled(enabled)
+        edit_metadata.triggered.connect(self._action_edit_metadata)
+        menu.addAction(edit_metadata)
+
+        return menu
+
+    def _on_context_menu(self, pos: object) -> None:
+        from PySide6.QtCore import QPoint
+
+        point = pos if isinstance(pos, QPoint) else self._table.viewport().rect().center()
+        index = self._table.indexAt(point)
+        if index.isValid():
+            self._table.selectRow(index.row())
+        menu = self.build_sample_context_menu()
+        menu.exec(self._table.viewport().mapToGlobal(point))
+
     def _toggle_filters(self, checked: bool) -> None:
         self._filter_panel.setVisible(checked)
 
@@ -170,6 +293,7 @@ class LibraryBrowserScreen(QWidget):
             )
         )
         self._sync_count()
+        self._sync_content_state()
 
     def _on_text_changed(self, _text: str) -> None:
         self._apply_text_query()
@@ -186,11 +310,32 @@ class LibraryBrowserScreen(QWidget):
             )
         )
         self._sync_count()
+        self._sync_content_state()
 
     def _sync_count(self) -> None:
         total = self._model.rowCount()
         label = "sample" if total == 1 else "samples"
         self._count_label.setText(f"{total} {label}")
+
+    def _sync_content_state(self) -> None:
+        total = self._model.rowCount()
+        if total == 0:
+            query_text = self._model.query.text.strip()
+            if query_text or not self._model.query.filters.is_empty():
+                self._state_panel.show_empty(
+                    "No matching Samples",
+                    "Try clearing search or filters. Indexed audio stays safe.",
+                )
+            else:
+                self._state_panel.show_empty(
+                    "Library is empty",
+                    "Add a Source to index Samples. Nothing is copied until you choose Copy/Move.",
+                )
+            self._table.setVisible(False)
+            return
+        if self._state_panel.state is not ContentState.READY:
+            self._state_panel.clear()
+        self._table.setVisible(True)
 
     def _selected_sample_id(self) -> str | None:
         indexes = self._table.selectionModel().selectedRows()
@@ -249,6 +394,93 @@ class LibraryBrowserScreen(QWidget):
         sample_id = self._selected_sample_id()
         if sample_id is not None:
             self.open_sample_detail_requested.emit(sample_id)
+
+    def _action_play(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is None:
+            return
+        self.load_selection_into_playback()
+        playback = self._context.playback_service
+        if playback.state is PlaybackState.PLAYING:
+            playback.pause()
+        else:
+            playback.play()
+        self.play_requested.emit(sample_id)
+
+    def _action_favourite(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is None:
+            return
+        try:
+            updated = self._context.sample_service.toggle_favorite(EntityId(sample_id))
+        except ApplicationError as exc:
+            self._state_panel.show_error("Could not update Favourite", str(exc))
+            return
+        self.favourite_changed.emit(sample_id, updated.favorite)
+        self.refresh()
+
+    def _action_add_to_collection(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is None:
+            return
+        collections = self._context.collection_service.list_with_counts()
+        if not collections:
+            name, accepted = QInputDialog.getText(
+                self,
+                "Add to Collection",
+                "No Collections yet. Name a new Collection:",
+            )
+            if not accepted or not name.strip():
+                return
+            try:
+                collection = self._context.collection_service.create(name.strip())
+                self._context.collection_service.add_samples(collection.id, [EntityId(sample_id)])
+            except ApplicationError as exc:
+                QMessageBox.warning(self, "Could not add to Collection", str(exc))
+                return
+            self.add_to_collection_requested.emit(sample_id)
+            return
+
+        labels = [item.collection.name for item in collections]
+        choice, accepted = QInputDialog.getItem(
+            self,
+            "Add to Collection",
+            "Collection:",
+            labels,
+            0,
+            False,
+        )
+        if not accepted or not choice:
+            return
+        selected = next(
+            (item for item in collections if item.collection.name == choice),
+            None,
+        )
+        if selected is None:
+            return
+        try:
+            self._context.collection_service.add_samples(
+                selected.collection.id, [EntityId(sample_id)]
+            )
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not add to Collection", str(exc))
+            return
+        self.add_to_collection_requested.emit(sample_id)
+
+    def _action_prepare(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is not None:
+            self.prepare_requested.emit(sample_id)
+
+    def _action_edit_metadata(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is not None:
+            self.edit_metadata_requested.emit(sample_id)
+
+    def _action_find_similar(self) -> None:
+        sample_id = self._selected_sample_id()
+        if sample_id is not None:
+            self.find_similar_requested.emit(sample_id)
 
 
 # Backward-compatible alias used by older Phase 2 shell imports.

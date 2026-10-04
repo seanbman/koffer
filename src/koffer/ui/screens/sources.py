@@ -19,6 +19,7 @@ from koffer.domain.ids import EntityId
 from koffer.domain.models import Source
 from koffer.services.sources import SourceListItem, SourceService
 from koffer.ui.tokens import FAINT, GREEN, MUTED, RED, YELLOW
+from koffer.ui.widgets.content_state import ContentStatePanel
 
 
 def _status_label(source: Source) -> tuple[str, str]:
@@ -93,17 +94,27 @@ class SourcesScreen(QWidget):
         self._list.itemDoubleClicked.connect(self._on_item_activated)
         root.addWidget(self._list, stretch=1)
 
-        self._empty = QLabel("No Sources yet. Add a directory to begin indexing.")
-        self._empty.setObjectName("bodyText")
-        root.addWidget(self._empty)
+        self._state_panel = ContentStatePanel()
+        root.addWidget(self._state_panel)
 
     def refresh(self) -> None:
         self._list.clear()
+        self._state_panel.show_loading("Loading Sources…")
         items = self._source_service.list_with_status()
-        self._empty.setVisible(len(items) == 0)
-        self._list.setVisible(len(items) > 0)
-        for item in items:
-            self._list.addItem(self._make_row(item))
+        if len(items) == 0:
+            self._list.setVisible(False)
+            self._state_panel.show_empty(
+                "No Sources yet",
+                (
+                    "Add a directory to begin indexing. "
+                    "Audio stays in place until you choose Copy/Move."
+                ),
+            )
+        else:
+            self._state_panel.clear()
+            self._list.setVisible(True)
+            for item in items:
+                self._list.addItem(self._make_row(item))
 
     def _make_row(self, item: SourceListItem) -> QListWidgetItem:
         source = item.source

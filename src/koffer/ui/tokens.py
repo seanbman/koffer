@@ -149,6 +149,17 @@ QLineEdit#librarySearchField {{
     padding: 6px 10px;
     min-height: 28px;
 }}
+QLineEdit#librarySearchField:focus {{
+    border: 1px solid {CLAY_BRIGHT};
+}}
+QPushButton:focus {{
+    outline: none;
+    border: 1px solid {CLAY_BRIGHT};
+}}
+QPushButton#navButton:focus {{
+    outline: none;
+    border: 1px solid {CLAY_BRIGHT};
+}}
 QTableView#sampleTable {{
     background-color: {SURFACE_1};
     alternate-background-color: #14181C;
@@ -157,6 +168,12 @@ QTableView#sampleTable {{
     border: 1px solid {BORDER};
     selection-background-color: {SURFACE_3};
     selection-color: {TEXT};
+}}
+QTableView#sampleTable:focus {{
+    border: 1px solid {CLAY_BRIGHT};
+}}
+QListWidget:focus {{
+    border: 1px solid {CLAY_BRIGHT};
 }}
 QHeaderView::section {{
     background-color: {SURFACE_1};
@@ -201,5 +218,10 @@ QLabel#provenanceHeading {{
     color: {TEXT};
     font-size: 11px;
     font-weight: 700;
+}}
+QWidget#contentStatePanel {{
+    background-color: {SURFACE_1};
+    border: 1px solid {BORDER};
+    border-radius: 6px;
 }}
 """
