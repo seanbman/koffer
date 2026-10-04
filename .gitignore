@@ -22,6 +22,7 @@ htmlcov/
 # Generated packaging output
 packaging/appimage/out/
 packaging/AppDir/
+THIRD_PARTY_NOTICES.txt
 
 # Semantic model weights must never enter Git (docs/23)
 *.pth

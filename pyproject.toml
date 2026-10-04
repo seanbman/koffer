@@ -32,6 +32,10 @@ semantic = [
     "torch>=2.2,<3",
     "hnswlib>=0.8,<0.9",
 ]
+# AppImage packaging toolchain (PyInstaller onedir). Not required for runtime users.
+packaging = [
+    "pyinstaller>=6.3,<7",
+]
 
 [project.scripts]
 koffer = "koffer.app:main"

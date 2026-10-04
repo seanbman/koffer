@@ -1,9 +1,30 @@
 #!/bin/sh
-# Phase 0 placeholder AppRun. Real AppDir staging lands in a later packaging Order.
+# AppImage AppRun: resolve APPDIR-relative paths; never fall back to a system koffer.
 set -eu
+
 HERE="$(dirname "$(readlink -f "$0")")"
-if [ ! -x "$HERE/usr/bin/koffer" ]; then
-  echo "koffer: packaged runtime missing under $HERE/usr/bin/koffer" >&2
+# Prefer explicit APPDIR when set, but always canonicalize to an absolute path
+# before any cwd change (relative APPDIR breaks after cd).
+APPDIR="$(readlink -f "${APPDIR:-$HERE}")"
+
+# Preserve user XDG environment; only set defaults when unset.
+: "${XDG_CONFIG_HOME:=${HOME}/.config}"
+: "${XDG_DATA_HOME:=${HOME}/.local/share}"
+: "${XDG_CACHE_HOME:=${HOME}/.cache}"
+export XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME
+
+BIN="${APPDIR}/usr/bin/koffer"
+if [ ! -x "$BIN" ]; then
+  echo "koffer: packaged runtime missing at ${BIN}" >&2
+  echo "koffer: this AppImage is incomplete; rebuild with scripts/build_appimage.sh" >&2
   exit 1
 fi
-exec "$HERE/usr/bin/koffer" "$@"
+
+# Prefer bundled libraries without requiring PYTHONPATH or a cwd under the source tree.
+if [ -d "${APPDIR}/usr/lib/koffer" ]; then
+  export LD_LIBRARY_PATH="${APPDIR}/usr/lib/koffer${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
+cd "$HOME" || cd /
+
+exec "$BIN" "$@"

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Koffer">
+  <rect width="128" height="128" rx="24" fill="#1B1F24"/>
+  <rect x="28" y="40" width="72" height="56" rx="10" fill="#3D9A6A"/>
+  <rect x="48" y="28" width="32" height="18" rx="6" fill="#2E7A54"/>
+  <circle cx="64" cy="68" r="10" fill="#E8F5EE"/>
+</svg>

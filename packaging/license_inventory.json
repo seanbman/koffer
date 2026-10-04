@@ -1,0 +1,48 @@
+{
+  "policy": "Direct production dependencies must appear here with an allowed SPDX license id. Update via packaging Orders only.",
+  "allowed_spdx": [
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "ISC",
+    "PSF-2.0",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "LGPL-2.1-only",
+    "LGPL-2.1-or-later"
+  ],
+  "direct_dependencies": {
+    "PySide6": {
+      "spdx": "LGPL-3.0-only",
+      "role": "Desktop UI / Qt 6 bindings",
+      "notes": "Qt LGPL components; redistribution notices required in AppImage."
+    },
+    "librosa": {
+      "spdx": "ISC",
+      "role": "Music analysis baseline",
+      "notes": ""
+    },
+    "mutagen": {
+      "spdx": "GPL-2.0-or-later",
+      "role": "Audio metadata read/write",
+      "notes": "GPL-2.0-or-later is recorded; packaging gate treats mutagen as an explicitly reviewed exception for V1."
+    },
+    "numpy": {
+      "spdx": "BSD-3-Clause",
+      "role": "Numeric arrays / DSP",
+      "notes": ""
+    },
+    "platformdirs": {
+      "spdx": "MIT",
+      "role": "XDG path resolution",
+      "notes": ""
+    }
+  },
+  "exceptions": {
+    "mutagen": {
+      "spdx": "GPL-2.0-or-later",
+      "rationale": "Documented V1 metadata dependency; license inventory must remain explicit."
+    }
+  }
+}

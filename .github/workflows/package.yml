@@ -1,0 +1,59 @@
+name: package
+
+on:
+  push:
+    branches: [dev]
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-rc.*"
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync frozen dependencies (incl. packaging)
+        run: uv sync --frozen --extra packaging --extra dev
+
+      - name: License inventory gate
+        run: make licenses
+
+      - name: Desktop integration smoke (sources)
+        run: ./scripts/smoke_appimage.sh --dry-run
+
+      - name: Install appimagetool
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+
+      - name: Build AppImage
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ./scripts/build_appimage.sh
+
+      - name: Smoke AppImage
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ./scripts/smoke_appimage.sh
+
+      - name: Upload AppImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: koffer-appimage
+          path: |
+            dist/Koffer-*.AppImage
+            dist/Koffer-*.AppImage.sha256
+            dist/THIRD_PARTY_NOTICES.txt
+          if-no-files-found: error
