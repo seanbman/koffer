@@ -35,6 +35,13 @@ class ExclusionPatternType(StrEnum):
     HIDDEN_POLICY = "hidden_policy"
 
 
+class ScanMode(StrEnum):
+    """How a Source scan compares discovered files to known state."""
+
+    INCREMENTAL = "incremental"
+    FULL = "full"
+
+
 class ClassificationDimension(StrEnum):
     """Confirmed library classification axes (docs/05, docs/17)."""
 

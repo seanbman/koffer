@@ -157,3 +157,21 @@ class SampleRepository:
             )
             > 0
         )
+
+    def delete_by_source(self, source_id: EntityId) -> int:
+        """Delete all Sample rows for a Source (index state only; never files)."""
+        return row_count(
+            self._conn,
+            "DELETE FROM samples WHERE source_id = ?",
+            (str(source_id),),
+        )
+
+    def get_by_source_relative_path(self, source_id: EntityId, relative_path: str) -> Sample | None:
+        row = self._conn.execute(
+            """
+            SELECT * FROM samples
+            WHERE source_id = ? AND relative_path = ?
+            """,
+            (str(source_id), relative_path),
+        ).fetchone()
+        return None if row is None else _from_row(row)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from koffer.domain.enums import (
     ClassificationDimension,
     ClassificationSource,
+    ExclusionPatternType,
     JobState,
     JobType,
     SampleAvailability,
@@ -14,6 +15,27 @@ from koffer.domain.enums import (
     SuggestionStatus,
 )
 from koffer.domain.ids import EntityId
+
+
+@dataclass(frozen=True, slots=True)
+class ExclusionRule:
+    """One exclusion pattern attached to a Source."""
+
+    id: EntityId
+    source_id: EntityId
+    pattern: str
+    pattern_type: ExclusionPatternType
+    enabled: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class ExclusionPreview:
+    """Dry-run effect of exclusion rules against the current Source tree."""
+
+    rules: tuple[ExclusionRule, ...]
+    matched_relative_paths: tuple[str, ...]
+    excluded_count: int
+    included_supported_count: int
 
 
 @dataclass(frozen=True, slots=True)

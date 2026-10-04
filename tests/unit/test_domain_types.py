@@ -10,6 +10,7 @@ from koffer.domain import (
     JobState,
     JobType,
     SampleAvailability,
+    ScanMode,
     SourceStatus,
     SuggestionStatus,
     new_entity_id,
@@ -24,6 +25,7 @@ def test_core_enums_expose_documented_values() -> None:
     assert SuggestionStatus.PENDING == "pending"
     assert JobState.QUEUED == "queued"
     assert JobType.SOURCE_SCAN == "source_scan"
+    assert ScanMode.INCREMENTAL == "incremental"
 
 
 def test_new_entity_id_is_uuid_v4_text() -> None:
