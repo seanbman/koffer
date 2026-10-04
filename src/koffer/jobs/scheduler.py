@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import sqlite3
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -18,6 +20,7 @@ from koffer.jobs.cancel import mark_cancelled
 from koffer.jobs.deterministic_analysis import run_deterministic_analysis_job
 from koffer.jobs.file_ops import run_file_operation
 from koffer.jobs.lanes import default_analysis_workers, lane_for_job_type
+from koffer.jobs.maintenance import run_maintenance_job
 from koffer.jobs.metadata_write import run_metadata_write
 from koffer.jobs.progress import ProgressEvent, ProgressListener, ProgressThrottle
 from koffer.jobs.render import run_render
@@ -27,6 +30,18 @@ from koffer.jobs.synthetic import run_synthetic_items
 from koffer.jobs.technical_probe import run_technical_probe
 from koffer.persistence.connection import ConnectionFactory
 from koffer.repositories.jobs import JobRepository
+
+_MAINTENANCE_TYPES = frozenset(
+    {
+        JobType.BACKUP,
+        JobType.RESTORE,
+        JobType.DATABASE_VERIFY,
+        JobType.REBUILD_FILESYSTEM_INDEX,
+        JobType.REBUILD_WAVEFORMS,
+        JobType.REBUILD_ANALYSIS,
+        JobType.CACHE_CLEAR,
+    }
+)
 
 _ABANDONED_STATES = frozenset(
     {
@@ -251,7 +266,11 @@ class JobScheduler:
             future = self._futures.get(str(job_id))
         if future is not None:
             try:
-                future.result(timeout=timeout)
+                result = future.result(timeout=timeout)
+                # Prefer the runner's returned Job: restore replaces the DB file,
+                # so a pre-restore thread-local connection can still read RUNNING.
+                if isinstance(result, Job) and result.state in _TERMINAL_STATES:
+                    return result
             except TimeoutError:
                 pass
             except Exception:
@@ -297,6 +316,8 @@ class JobScheduler:
             return pool.submit(self._run_render, job.id)
         if job.type in {JobType.REBUILD_SIMILARITY, JobType.SIMILARITY_INDEX_BUILD}:
             return pool.submit(self._run_similarity_rebuild, job.id)
+        if job.type in _MAINTENANCE_TYPES:
+            return pool.submit(self._run_maintenance, job.id)
         return pool.submit(self._fail_unsupported, job.id)
 
     def _run_source_scan(self, job_id: EntityId) -> Job:
@@ -461,6 +482,30 @@ class JobScheduler:
             return completed
         finally:
             conn.close()
+
+    def _run_maintenance(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
+                return cancelled
+            completed = run_maintenance_job(
+                conn,
+                job,
+                connection_factory=self._factory,
+                progress=self._progress,
+                scheduler=self,
+            )
+            self._emit_job(completed, force=True)
+            return completed
+        finally:
+            # Restore may have closed this connection already.
+            with contextlib.suppress(sqlite3.Error):
+                conn.close()
 
     def _fail_unsupported(self, job_id: EntityId) -> Job:
         conn = self._factory.open_connection()

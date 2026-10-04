@@ -199,3 +199,24 @@ class CollectionSortMode(StrEnum):
     ADDED_AT_ASC = "added_at_asc"
     ADDED_AT_DESC = "added_at_desc"
     MANUAL = "manual"
+
+
+class CacheCategory(StrEnum):
+    """Rebuildable cache categories safe to clear without losing organization."""
+
+    WAVEFORMS = "waveforms"
+    EMBEDDINGS = "embeddings"
+    SIMILARITY_INDEX = "similarity_index"
+    TEMP_RENDERS = "temp_renders"
+    ANALYSIS_DERIVED = "analysis_derived"
+
+
+class RecoveryCondition(StrEnum):
+    """Distinct S15 recovery conditions (never collapsed to deleted)."""
+
+    SOURCE_OFFLINE = "source_offline"
+    FILE_MISSING = "file_missing"
+    FILE_MOVED = "file_moved"
+    FILE_CHANGED = "file_changed"
+    PERMISSION_DENIED = "permission_denied"
+    MOUNT_IDENTITY_CHANGED = "mount_identity_changed"

@@ -99,6 +99,21 @@ class SampleRepository:
         ).fetchall()
         return [_from_row(row) for row in rows]
 
+    def list_by_availability(self, availabilities: tuple[SampleAvailability, ...]) -> list[Sample]:
+        """Return Samples matching any of the given availability states."""
+        if not availabilities:
+            return []
+        placeholders = ", ".join("?" for _ in availabilities)
+        rows = self._conn.execute(
+            f"""
+            SELECT * FROM samples
+            WHERE availability IN ({placeholders})
+            ORDER BY filename ASC, id ASC
+            """,
+            tuple(str(item) for item in availabilities),
+        ).fetchall()
+        return [_from_row(row) for row in rows]
+
     def update(self, sample: Sample) -> bool:
         return (
             row_count(

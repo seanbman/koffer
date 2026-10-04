@@ -19,6 +19,7 @@ from koffer.services.file_operations import (
     FileOperationService,
     PlannedFileItem,
 )
+from koffer.services.maintenance import MaintenanceService
 from koffer.services.metadata import (
     MetadataCapabilities,
     MetadataService,
@@ -31,8 +32,16 @@ from koffer.services.preparation import (
     RenderOptions,
     RenderPlan,
 )
+from koffer.services.recovery import RecoveryIssue, RecoveryService
 from koffer.services.samples import ProvenanceCategory, SampleDetail, SampleService
 from koffer.services.search import SearchService
+from koffer.services.settings import (
+    AppSettings,
+    AudioInterfaceSettings,
+    GeneralSettings,
+    LibraryAnalysisSettings,
+    SettingsService,
+)
 from koffer.services.similarity import (
     SimilarityResult,
     SimilarityService,
@@ -45,12 +54,17 @@ __all__ = [
     "AnalysisService",
     "AnalysisState",
     "AnalysisStateKind",
+    "AppSettings",
+    "AudioInterfaceSettings",
     "CollectionDetailView",
     "CollectionListItem",
     "CollectionService",
     "ConflictPolicy",
     "FileOperationPlan",
     "FileOperationService",
+    "GeneralSettings",
+    "LibraryAnalysisSettings",
+    "MaintenanceService",
     "MetadataCapabilities",
     "MetadataService",
     "PlaybackService",
@@ -60,11 +74,14 @@ __all__ = [
     "PreparationService",
     "PreviewHandle",
     "ProvenanceCategory",
+    "RecoveryIssue",
+    "RecoveryService",
     "RenderOptions",
     "RenderPlan",
     "SampleDetail",
     "SampleService",
     "SearchService",
+    "SettingsService",
     "SimilarityResult",
     "SimilarityService",
     "SimilarityStatus",

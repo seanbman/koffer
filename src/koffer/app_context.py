@@ -1,4 +1,4 @@
-"""Application composition root: paths, DB, scheduler, and Phase 5 services."""
+"""Application composition root: paths, DB, scheduler, and application services."""
 
 from __future__ import annotations
 
@@ -16,11 +16,14 @@ from koffer.repositories.sources import SourceRepository
 from koffer.services.analysis import AnalysisService
 from koffer.services.collections import CollectionService
 from koffer.services.file_operations import FileOperationService
+from koffer.services.maintenance import MaintenanceService
 from koffer.services.metadata import MetadataService
 from koffer.services.playback import PlaybackService
 from koffer.services.preparation import PreparationService
+from koffer.services.recovery import RecoveryService
 from koffer.services.samples import SampleService
 from koffer.services.search import SearchService
+from koffer.services.settings import SettingsService
 from koffer.services.similarity import SimilarityService
 from koffer.services.sources import SourceService
 
@@ -47,6 +50,9 @@ class AppContext:
     preparation_service: PreparationService
     analysis_service: AnalysisService
     similarity_service: SimilarityService
+    maintenance_service: MaintenanceService
+    recovery_service: RecoveryService
+    settings_service: SettingsService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -75,6 +81,9 @@ class AppContext:
         analysis_service = AnalysisService(factory, scheduler)
         # Default PANNs provider stays unavailable without out-of-git weights.
         similarity_service = SimilarityService(factory, paths.cache_dir, scheduler=scheduler)
+        maintenance_service = MaintenanceService(factory, scheduler, paths)
+        recovery_service = RecoveryService(factory)
+        settings_service = SettingsService(factory)
         return cls(
             paths=paths,
             connection_factory=factory,
@@ -90,6 +99,9 @@ class AppContext:
             preparation_service=preparation_service,
             analysis_service=analysis_service,
             similarity_service=similarity_service,
+            maintenance_service=maintenance_service,
+            recovery_service=recovery_service,
+            settings_service=settings_service,
         )
 
     @classmethod

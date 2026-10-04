@@ -1,4 +1,4 @@
-"""Dark application shell with S00–S11/S12–S14/S16 foundations and transport."""
+"""Dark application shell with S00–S21 foundations and transport."""
 
 from __future__ import annotations
 
@@ -21,16 +21,22 @@ from koffer.domain.errors import ApplicationError
 from koffer.domain.file_operations import FileOperationPlan
 from koffer.domain.ids import EntityId
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
+from koffer.ui.screens.about import AboutDiagnosticsScreen
 from koffer.ui.screens.activity import ActivityCenterScreen
 from koffer.ui.screens.collection_detail import CollectionDetailScreen
 from koffer.ui.screens.collections import CollectionsScreen
 from koffer.ui.screens.conflicts import ConflictsScreen
 from koffer.ui.screens.import_review import ImportReviewScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
+from koffer.ui.screens.maintenance import MaintenanceScreen
 from koffer.ui.screens.metadata_editor import MetadataEditorScreen
+from koffer.ui.screens.offline_recovery import OfflineRecoveryScreen
 from koffer.ui.screens.render_export import RenderExportScreen
 from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.sample_preparation import SamplePreparationScreen
+from koffer.ui.screens.settings_audio import SettingsAudioScreen
+from koffer.ui.screens.settings_general import SettingsGeneralScreen
+from koffer.ui.screens.settings_library import SettingsLibraryScreen
 from koffer.ui.screens.similar_sounds import SimilarSoundsScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
@@ -56,7 +62,13 @@ SCREEN_SIMILAR_SOUNDS = "S11"
 SCREEN_IMPORT_REVIEW = "S12"
 SCREEN_CONFLICTS = "S13"
 SCREEN_RENDER_EXPORT = "S14"
+SCREEN_OFFLINE_RECOVERY = "S15"
 SCREEN_ACTIVITY = "S16"
+SCREEN_SETTINGS_GENERAL = "S17"
+SCREEN_SETTINGS_LIBRARY = "S18"
+SCREEN_SETTINGS_AUDIO = "S19"
+SCREEN_MAINTENANCE = "S20"
+SCREEN_ABOUT = "S21"
 
 
 class MainWindow(QMainWindow):
@@ -118,7 +130,13 @@ class MainWindow(QMainWindow):
         self._import_review = ImportReviewScreen(context.file_operation_service)
         self._conflicts = ConflictsScreen(context.file_operation_service)
         self._render_export = RenderExportScreen(context.preparation_service)
+        self._offline_recovery = OfflineRecoveryScreen(context.recovery_service)
         self._activity = ActivityCenterScreen(context.scheduler)
+        self._settings_general = SettingsGeneralScreen(context)
+        self._settings_library = SettingsLibraryScreen(context)
+        self._settings_audio = SettingsAudioScreen(context)
+        self._maintenance = MaintenanceScreen(context)
+        self._about = AboutDiagnosticsScreen(context)
 
         self._stack.addWidget(self._welcome)
         self._stack.addWidget(self._library)
@@ -134,7 +152,13 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._import_review)
         self._stack.addWidget(self._conflicts)
         self._stack.addWidget(self._render_export)
+        self._stack.addWidget(self._offline_recovery)
         self._stack.addWidget(self._activity)
+        self._stack.addWidget(self._settings_general)
+        self._stack.addWidget(self._settings_library)
+        self._stack.addWidget(self._settings_audio)
+        self._stack.addWidget(self._maintenance)
+        self._stack.addWidget(self._about)
 
         self._welcome.add_source_requested.connect(self._pick_and_add_source)
         self._welcome.directory_dropped.connect(self._add_source_path)
@@ -163,6 +187,12 @@ class MainWindow(QMainWindow):
         self._conflicts.apply_requested.connect(self._return_from_conflicts)
         self._render_export.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_PREPARATION))
         self._render_export.execute_requested.connect(self._execute_render_plan)
+        self._settings_general.open_library_settings_requested.connect(
+            lambda: self.navigate(SCREEN_SETTINGS_LIBRARY)
+        )
+        self._settings_general.open_audio_settings_requested.connect(
+            lambda: self.navigate(SCREEN_SETTINGS_AUDIO)
+        )
 
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
@@ -271,7 +301,13 @@ class MainWindow(QMainWindow):
             SCREEN_IMPORT_REVIEW: self._import_review,
             SCREEN_CONFLICTS: self._conflicts,
             SCREEN_RENDER_EXPORT: self._render_export,
+            SCREEN_OFFLINE_RECOVERY: self._offline_recovery,
             SCREEN_ACTIVITY: self._activity,
+            SCREEN_SETTINGS_GENERAL: self._settings_general,
+            SCREEN_SETTINGS_LIBRARY: self._settings_library,
+            SCREEN_SETTINGS_AUDIO: self._settings_audio,
+            SCREEN_MAINTENANCE: self._maintenance,
+            SCREEN_ABOUT: self._about,
         }
         widget = mapping.get(screen_id)
         if widget is None:
@@ -302,8 +338,20 @@ class MainWindow(QMainWindow):
             self._conflicts.refresh()
         if screen_id == SCREEN_RENDER_EXPORT:
             self._render_export.refresh()
+        if screen_id == SCREEN_OFFLINE_RECOVERY:
+            self._offline_recovery.refresh()
         if screen_id == SCREEN_ACTIVITY:
             self._activity.refresh()
+        if screen_id == SCREEN_SETTINGS_GENERAL:
+            self._settings_general.refresh()
+        if screen_id == SCREEN_SETTINGS_LIBRARY:
+            self._settings_library.refresh()
+        if screen_id == SCREEN_SETTINGS_AUDIO:
+            self._settings_audio.refresh()
+        if screen_id == SCREEN_MAINTENANCE:
+            self._maintenance.refresh()
+        if screen_id == SCREEN_ABOUT:
+            self._about.refresh()
         self._stack.setCurrentWidget(widget)
         self._current_screen = screen_id
         self._update_nav_checked()
@@ -351,6 +399,30 @@ class MainWindow(QMainWindow):
         self._nav_activity.clicked.connect(lambda: self.navigate(SCREEN_ACTIVITY))
         column.addWidget(self._nav_activity)
 
+        self._nav_recovery = QPushButton("Recovery")
+        self._nav_recovery.setObjectName("navButton")
+        self._nav_recovery.setCheckable(True)
+        self._nav_recovery.clicked.connect(lambda: self.navigate(SCREEN_OFFLINE_RECOVERY))
+        column.addWidget(self._nav_recovery)
+
+        self._nav_settings = QPushButton("Settings")
+        self._nav_settings.setObjectName("navButton")
+        self._nav_settings.setCheckable(True)
+        self._nav_settings.clicked.connect(lambda: self.navigate(SCREEN_SETTINGS_GENERAL))
+        column.addWidget(self._nav_settings)
+
+        self._nav_maintenance = QPushButton("Maintenance")
+        self._nav_maintenance.setObjectName("navButton")
+        self._nav_maintenance.setCheckable(True)
+        self._nav_maintenance.clicked.connect(lambda: self.navigate(SCREEN_MAINTENANCE))
+        column.addWidget(self._nav_maintenance)
+
+        self._nav_about = QPushButton("About")
+        self._nav_about.setObjectName("navButton")
+        self._nav_about.setCheckable(True)
+        self._nav_about.clicked.connect(lambda: self.navigate(SCREEN_ABOUT))
+        column.addWidget(self._nav_about)
+
         column.addStretch(1)
         return rail
 
@@ -362,6 +434,13 @@ class MainWindow(QMainWindow):
         self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
         self._nav_suggestions.setChecked(self._current_screen == SCREEN_SUGGESTIONS)
         self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
+        self._nav_recovery.setChecked(self._current_screen == SCREEN_OFFLINE_RECOVERY)
+        self._nav_settings.setChecked(
+            self._current_screen
+            in {SCREEN_SETTINGS_GENERAL, SCREEN_SETTINGS_LIBRARY, SCREEN_SETTINGS_AUDIO}
+        )
+        self._nav_maintenance.setChecked(self._current_screen == SCREEN_MAINTENANCE)
+        self._nav_about.setChecked(self._current_screen == SCREEN_ABOUT)
 
     def _sync_initial_route(self) -> None:
         if self._context.source_service.list():
