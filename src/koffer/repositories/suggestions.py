@@ -91,6 +91,73 @@ class SuggestionRepository:
             ).fetchall()
         return [_from_row(row) for row in rows]
 
+    def list_by_status(
+        self,
+        status: SuggestionStatus,
+        *,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> list[Suggestion]:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM suggestions
+            WHERE status = ?
+            ORDER BY confidence DESC, created_at ASC, id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (str(status), int(limit), int(offset)),
+        ).fetchall()
+        return [_from_row(row) for row in rows]
+
+    def count_by_status(self, status: SuggestionStatus) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM suggestions WHERE status = ?",
+            (str(status),),
+        ).fetchone()
+        return int(row["n"]) if row is not None else 0
+
+    def supersede_pending_for_sample(
+        self,
+        sample_id: EntityId,
+        *,
+        reviewed_at: str,
+        dimensions: set[str] | None = None,
+    ) -> int:
+        """Mark pending Suggestions superseded. Optional dimension filter."""
+        if dimensions is None:
+            return row_count(
+                self._conn,
+                """
+                UPDATE suggestions
+                SET status = ?, reviewed_at = ?
+                WHERE sample_id = ? AND status = ?
+                """,
+                (
+                    str(SuggestionStatus.SUPERSEDED),
+                    reviewed_at,
+                    str(sample_id),
+                    str(SuggestionStatus.PENDING),
+                ),
+            )
+        if not dimensions:
+            return 0
+        placeholders = ", ".join("?" for _ in dimensions)
+        return row_count(
+            self._conn,
+            f"""
+            UPDATE suggestions
+            SET status = ?, reviewed_at = ?
+            WHERE sample_id = ? AND status = ? AND dimension IN ({placeholders})
+            """,
+            (
+                str(SuggestionStatus.SUPERSEDED),
+                reviewed_at,
+                str(sample_id),
+                str(SuggestionStatus.PENDING),
+                *sorted(dimensions),
+            ),
+        )
+
     def update(self, suggestion: Suggestion) -> bool:
         return (
             row_count(

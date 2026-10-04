@@ -1,4 +1,4 @@
-"""Dark application shell with S00–S09/S12–S14/S16 foundations and transport."""
+"""Dark application shell with S00–S10/S12–S14/S16 foundations and transport."""
 
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.sample_preparation import SamplePreparationScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
+from koffer.ui.screens.suggestions_review import SuggestionsReviewScreen
 from koffer.ui.screens.welcome import WelcomeScreen
 from koffer.ui.tokens import CANVAS, CLAY, SHELL_STYLESHEET
 from koffer.ui.widgets.transport import TransportBar
@@ -49,6 +50,7 @@ SCREEN_SOURCE_DETAIL = "S06"
 SCREEN_SAMPLE_DETAIL = "S07"
 SCREEN_SAMPLE_PREPARATION = "S08"
 SCREEN_METADATA_EDITOR = "S09"
+SCREEN_SUGGESTIONS = "S10"
 SCREEN_IMPORT_REVIEW = "S12"
 SCREEN_CONFLICTS = "S13"
 SCREEN_RENDER_EXPORT = "S14"
@@ -109,6 +111,7 @@ class MainWindow(QMainWindow):
         self._sample_detail = SampleDetailScreen(context.sample_service)
         self._sample_preparation = SamplePreparationScreen(context.preparation_service)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
+        self._suggestions = SuggestionsReviewScreen(context.analysis_service)
         self._import_review = ImportReviewScreen(context.file_operation_service)
         self._conflicts = ConflictsScreen(context.file_operation_service)
         self._render_export = RenderExportScreen(context.preparation_service)
@@ -123,6 +126,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sample_detail)
         self._stack.addWidget(self._sample_preparation)
         self._stack.addWidget(self._metadata_editor)
+        self._stack.addWidget(self._suggestions)
         self._stack.addWidget(self._import_review)
         self._stack.addWidget(self._conflicts)
         self._stack.addWidget(self._render_export)
@@ -144,6 +148,7 @@ class MainWindow(QMainWindow):
         self._sample_preparation.export_requested.connect(self._open_render_export)
         self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._metadata_editor.execute_requested.connect(self._execute_metadata_plan)
+        self._suggestions.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._import_review.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._import_review.resolve_conflicts_requested.connect(self._open_conflicts_from_review)
         self._import_review.execute_requested.connect(self._execute_import_plan)
@@ -159,6 +164,10 @@ class MainWindow(QMainWindow):
         self._activity_shortcut = QShortcut(QKeySequence("Ctrl+Shift+A"), self)
         self._activity_shortcut.setObjectName("activityCenterShortcut")
         self._activity_shortcut.activated.connect(lambda: self.navigate(SCREEN_ACTIVITY))
+
+        self._suggestions_shortcut = QShortcut(QKeySequence("Ctrl+Shift+S"), self)
+        self._suggestions_shortcut.setObjectName("suggestionsReviewShortcut")
+        self._suggestions_shortcut.activated.connect(lambda: self.navigate(SCREEN_SUGGESTIONS))
 
         self.setCentralWidget(shell)
         self._sync_initial_route()
@@ -198,6 +207,9 @@ class MainWindow(QMainWindow):
     def metadata_editor(self) -> MetadataEditorScreen:
         return self._metadata_editor
 
+    def suggestions_review(self) -> SuggestionsReviewScreen:
+        return self._suggestions
+
     def sample_preparation(self) -> SamplePreparationScreen:
         return self._sample_preparation
 
@@ -216,6 +228,10 @@ class MainWindow(QMainWindow):
         """Present S09 for the given Sample ids."""
         self._metadata_editor.show_samples(sample_ids)
         self.navigate(SCREEN_METADATA_EDITOR)
+
+    def open_suggestions_review(self) -> None:
+        """Present S10 Suggestions Review inbox."""
+        self.navigate(SCREEN_SUGGESTIONS)
 
     def open_sample_preparation(self, sample_id: EntityId) -> None:
         """Present S08 for the given Sample id."""
@@ -238,6 +254,7 @@ class MainWindow(QMainWindow):
             SCREEN_SAMPLE_DETAIL: self._sample_detail,
             SCREEN_SAMPLE_PREPARATION: self._sample_preparation,
             SCREEN_METADATA_EDITOR: self._metadata_editor,
+            SCREEN_SUGGESTIONS: self._suggestions,
             SCREEN_IMPORT_REVIEW: self._import_review,
             SCREEN_CONFLICTS: self._conflicts,
             SCREEN_RENDER_EXPORT: self._render_export,
@@ -262,6 +279,8 @@ class MainWindow(QMainWindow):
             self._sample_preparation.refresh()
         if screen_id == SCREEN_METADATA_EDITOR:
             self._metadata_editor.refresh()
+        if screen_id == SCREEN_SUGGESTIONS:
+            self._suggestions.refresh()
         if screen_id == SCREEN_IMPORT_REVIEW:
             self._import_review.refresh()
         if screen_id == SCREEN_CONFLICTS:
@@ -305,6 +324,12 @@ class MainWindow(QMainWindow):
         self._nav_sources.clicked.connect(lambda: self.navigate(SCREEN_SOURCES))
         column.addWidget(self._nav_sources)
 
+        self._nav_suggestions = QPushButton("Suggestions")
+        self._nav_suggestions.setObjectName("navButton")
+        self._nav_suggestions.setCheckable(True)
+        self._nav_suggestions.clicked.connect(lambda: self.navigate(SCREEN_SUGGESTIONS))
+        column.addWidget(self._nav_suggestions)
+
         self._nav_activity = QPushButton("Activity")
         self._nav_activity.setObjectName("navButton")
         self._nav_activity.setCheckable(True)
@@ -320,6 +345,7 @@ class MainWindow(QMainWindow):
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
         )
         self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
+        self._nav_suggestions.setChecked(self._current_screen == SCREEN_SUGGESTIONS)
         self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
 
     def _sync_initial_route(self) -> None:

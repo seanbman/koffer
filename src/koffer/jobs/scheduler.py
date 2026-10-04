@@ -15,6 +15,7 @@ from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import Job
 from koffer.domain.timestamps import utc_now_iso
 from koffer.jobs.cancel import mark_cancelled
+from koffer.jobs.deterministic_analysis import run_deterministic_analysis_job
 from koffer.jobs.file_ops import run_file_operation
 from koffer.jobs.lanes import default_analysis_workers, lane_for_job_type
 from koffer.jobs.metadata_write import run_metadata_write
@@ -279,6 +280,8 @@ class JobScheduler:
             return pool.submit(self._run_source_scan, job.id)
         if job.type is JobType.TECHNICAL_PROBE:
             return pool.submit(self._run_technical_probe, job.id)
+        if job.type is JobType.DETERMINISTIC_ANALYSIS:
+            return pool.submit(self._run_deterministic_analysis, job.id)
         if job.type is JobType.SYNTHETIC_ITEMS:
             return pool.submit(self._run_synthetic_items, job.id)
         if job.type in {
@@ -345,6 +348,27 @@ class JobScheduler:
                 self._emit_job(cancelled, force=True)
                 return cancelled
             completed = run_technical_probe(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
+            return completed
+        finally:
+            conn.close()
+
+    def _run_deterministic_analysis(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
+                return cancelled
+            completed = run_deterministic_analysis_job(
+                conn,
+                job,
+                connection_factory=self._factory,
+                progress=self._progress,
+            )
             self._emit_job(completed, force=True)
             return completed
         finally:

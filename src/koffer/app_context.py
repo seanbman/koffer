@@ -13,6 +13,7 @@ from koffer.persistence.connection import ConnectionFactory
 from koffer.persistence.migrations import apply_migrations
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
+from koffer.services.analysis import AnalysisService
 from koffer.services.collections import CollectionService
 from koffer.services.file_operations import FileOperationService
 from koffer.services.metadata import MetadataService
@@ -43,6 +44,7 @@ class AppContext:
     sample_service: SampleService
     file_operation_service: FileOperationService
     preparation_service: PreparationService
+    analysis_service: AnalysisService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -68,6 +70,7 @@ class AppContext:
         sample_service = SampleService(factory, metadata_service)
         file_operation_service = FileOperationService(factory, scheduler)
         preparation_service = PreparationService(factory, scheduler)
+        analysis_service = AnalysisService(factory, scheduler)
         return cls(
             paths=paths,
             connection_factory=factory,
@@ -81,6 +84,7 @@ class AppContext:
             sample_service=sample_service,
             file_operation_service=file_operation_service,
             preparation_service=preparation_service,
+            analysis_service=analysis_service,
         )
 
     @classmethod

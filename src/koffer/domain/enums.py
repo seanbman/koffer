@@ -183,6 +183,14 @@ class AnalysisRunState(StrEnum):
     CANCELLED = "cancelled"
 
 
+class AnalysisDepth(StrEnum):
+    """How deep AnalysisService should analyze a Sample/Source."""
+
+    DETERMINISTIC = "deterministic"
+    # Semantic depth is Phase 11; accepted here so callers can queue safely.
+    FULL = "full"
+
+
 class CollectionSortMode(StrEnum):
     """Ordering policy inside a Collection."""
 

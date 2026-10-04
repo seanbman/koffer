@@ -2,6 +2,7 @@
 
 from koffer.domain.enums import (
     ActivityGroup,
+    AnalysisDepth,
     AnalysisRunState,
     ArtworkAction,
     ClassificationDimension,
@@ -72,6 +73,7 @@ __all__ = [
     "DEFAULT_PAGE_LIMIT",
     "TIMESTAMP_CONVENTION",
     "ActivityGroup",
+    "AnalysisDepth",
     "AnalysisRunState",
     "ApplicationError",
     "ArtworkAction",

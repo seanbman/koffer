@@ -162,24 +162,40 @@ def test_s16_closing_does_not_cancel_running_job(qtbot: object, tmp_path: Path) 
 
 
 def test_s16_cancel_button_requests_cooperative_cancel(qtbot: object, tmp_path: Path) -> None:
+    """Cancel must win the race against completion; build UI before submitting work."""
+    import time
+
     context = AppContext.open_temp(tmp_path / "activity-cancel")
     try:
+        # Build the Activity Center first so MainWindow/setup cost cannot eat the
+        # job's remaining runtime (the prior flake: job completed before click).
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S16")
+
+        # Long runway: ~20s if never cancelled; cancel should land early.
+        item_count = 200
         job_id = context.scheduler.submit(
             JobSpec(
                 type=JobType.SYNTHETIC_ITEMS,
-                scope={"item_count": 50, "sleep_ms": 40, "label": "ui-cancel"},
+                scope={"item_count": item_count, "sleep_ms": 100, "label": "ui-cancel"},
             )
         )
-        import time
 
-        for _ in range(200):
-            job = context.scheduler.get(job_id)
-            if job.state is JobState.RUNNING and job.progress_current >= 1:
+        running: Job | None = None
+        for _ in range(300):
+            running = context.scheduler.get(job_id)
+            if running.state is JobState.RUNNING and running.progress_current >= 1:
+                break
+            if running.state in {JobState.COMPLETED, JobState.CANCELLED}:
                 break
             time.sleep(0.02)
 
-        window = MainWindow(context, directory_picker=lambda _p: None)
-        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        assert running is not None
+        assert running.state is JobState.RUNNING, f"job finished before cancel UI: {running.state}"
+        assert running.progress_current < item_count
+
+        # Refresh list so the newly submitted job is selectable.
         window.navigate("S16")
 
         job_list = window.findChild(QListWidget, "activityJobList")
@@ -194,12 +210,16 @@ def test_s16_cancel_button_requests_cooperative_cancel(qtbot: object, tmp_path: 
                 break
         assert selected
 
+        # Guard: still running at the moment we click Cancel.
+        pre_click = context.scheduler.get(job_id)
+        assert pre_click.state is JobState.RUNNING, f"pre-click state={pre_click.state}"
+
         cancel_btn = window.findChild(QPushButton, "activityCancelButton")
         assert cancel_btn is not None
         qtbot.mouseClick(cancel_btn, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
 
-        finished = context.scheduler.wait(job_id, timeout=10.0)
+        finished = context.scheduler.wait(job_id, timeout=15.0)
         assert finished.state is JobState.CANCELLED
-        assert finished.progress_current < 50
+        assert finished.progress_current < item_count
     finally:
         context.close()

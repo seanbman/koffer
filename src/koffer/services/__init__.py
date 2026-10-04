@@ -1,5 +1,13 @@
 """Application services (use-case orchestration)."""
 
+from koffer.services.analysis import (
+    AnalysisService,
+    AnalysisState,
+    AnalysisStateKind,
+    SuggestionAction,
+    SuggestionActionKind,
+    SuggestionReviewItem,
+)
 from koffer.services.collections import (
     CollectionDetailView,
     CollectionListItem,
@@ -28,6 +36,9 @@ from koffer.services.search import SearchService
 from koffer.services.sources import SourceDetailView, SourceListItem, SourceService
 
 __all__ = [
+    "AnalysisService",
+    "AnalysisState",
+    "AnalysisStateKind",
     "CollectionDetailView",
     "CollectionListItem",
     "CollectionService",
@@ -51,4 +62,7 @@ __all__ = [
     "SourceDetailView",
     "SourceListItem",
     "SourceService",
+    "SuggestionAction",
+    "SuggestionActionKind",
+    "SuggestionReviewItem",
 ]
