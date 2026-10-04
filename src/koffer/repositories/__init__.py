@@ -3,6 +3,7 @@
 from koffer.repositories.classifications import ClassificationRepository
 from koffer.repositories.collections import CollectionMembership, CollectionRepository
 from koffer.repositories.exclusions import SourceExclusionRepository
+from koffer.repositories.job_items import JobItem, JobItemRepository
 from koffer.repositories.jobs import JobRepository
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.saved_searches import SavedSearchRepository
@@ -15,6 +16,8 @@ __all__ = [
     "ClassificationRepository",
     "CollectionMembership",
     "CollectionRepository",
+    "JobItem",
+    "JobItemRepository",
     "JobRepository",
     "SampleRepository",
     "SavedSearchRepository",

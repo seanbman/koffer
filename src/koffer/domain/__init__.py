@@ -6,7 +6,9 @@ from koffer.domain.enums import (
     ClassificationDimension,
     ClassificationSource,
     CollectionSortMode,
+    ConflictAction,
     ExclusionPatternType,
+    FileOperationKind,
     JobItemState,
     JobLane,
     JobState,
@@ -22,6 +24,11 @@ from koffer.domain.errors import (
     PathUnavailableError,
     UnsupportedOperationError,
     ValidationError,
+)
+from koffer.domain.file_operations import (
+    ConflictPolicy,
+    FileOperationPlan,
+    PlannedFileItem,
 )
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import (
@@ -61,10 +68,14 @@ __all__ = [
     "ClassificationSource",
     "Collection",
     "CollectionSortMode",
+    "ConflictAction",
+    "ConflictPolicy",
     "EntityId",
     "ExclusionPatternType",
     "ExclusionPreview",
     "ExclusionRule",
+    "FileOperationKind",
+    "FileOperationPlan",
     "Job",
     "JobItemState",
     "JobLane",
@@ -75,6 +86,7 @@ __all__ = [
     "Page",
     "PageRequest",
     "PathUnavailableError",
+    "PlannedFileItem",
     "Sample",
     "SampleAvailability",
     "SampleFilters",

@@ -12,6 +12,7 @@ _LANE_BY_TYPE: dict[JobType, JobLane] = {
     JobType.REBUILD_FILESYSTEM_INDEX: JobLane.IO,
     JobType.CACHE_CLEAR: JobLane.IO,
     JobType.SYNTHETIC_ITEMS: JobLane.IO,
+    JobType.REFERENCE_SAMPLES: JobLane.IO,
     JobType.WAVEFORM_BUILD: JobLane.ANALYSIS,
     JobType.DETERMINISTIC_ANALYSIS: JobLane.ANALYSIS,
     JobType.SEMANTIC_ANALYSIS: JobLane.ANALYSIS,

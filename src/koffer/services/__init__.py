@@ -5,6 +5,12 @@ from koffer.services.collections import (
     CollectionListItem,
     CollectionService,
 )
+from koffer.services.file_operations import (
+    ConflictPolicy,
+    FileOperationPlan,
+    FileOperationService,
+    PlannedFileItem,
+)
 from koffer.services.metadata import MetadataCapabilities, MetadataService
 from koffer.services.playback import PlaybackService, PlaybackState
 from koffer.services.samples import ProvenanceCategory, SampleDetail, SampleService
@@ -15,10 +21,14 @@ __all__ = [
     "CollectionDetailView",
     "CollectionListItem",
     "CollectionService",
+    "ConflictPolicy",
+    "FileOperationPlan",
+    "FileOperationService",
     "MetadataCapabilities",
     "MetadataService",
     "PlaybackService",
     "PlaybackState",
+    "PlannedFileItem",
     "ProvenanceCategory",
     "SampleDetail",
     "SampleService",

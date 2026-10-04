@@ -93,6 +93,7 @@ class JobType(StrEnum):
     DETERMINISTIC_ANALYSIS = "deterministic_analysis"
     SEMANTIC_ANALYSIS = "semantic_analysis"
     SIMILARITY_INDEX_BUILD = "similarity_index_build"
+    REFERENCE_SAMPLES = "reference_samples"
     COPY_FILES = "copy_files"
     MOVE_FILES = "move_files"
     METADATA_WRITE = "metadata_write"
@@ -107,6 +108,24 @@ class JobType(StrEnum):
     DATABASE_VERIFY = "database_verify"
     # Harness Job: cooperative cancel / interrupted-recovery tests (no filesystem mutation).
     SYNTHETIC_ITEMS = "synthetic_items"
+
+
+class FileOperationKind(StrEnum):
+    """Semantically distinct file organization operations (docs/03, docs/27)."""
+
+    REFERENCE = "reference"
+    COPY = "copy"
+    MOVE = "move"
+
+
+class ConflictAction(StrEnum):
+    """Per-item / default destination conflict resolution (docs/03, docs/28)."""
+
+    REVIEW = "review"
+    KEEP_BOTH = "keep_both"
+    SKIP = "skip"
+    REPLACE = "replace"
+    CHOOSE_DESTINATION = "choose_destination"
 
 
 class JobLane(StrEnum):

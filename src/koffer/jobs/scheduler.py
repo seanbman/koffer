@@ -15,6 +15,7 @@ from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import Job
 from koffer.domain.timestamps import utc_now_iso
 from koffer.jobs.cancel import mark_cancelled
+from koffer.jobs.file_ops import run_file_operation
 from koffer.jobs.lanes import default_analysis_workers, lane_for_job_type
 from koffer.jobs.progress import ProgressEvent, ProgressListener, ProgressThrottle
 from koffer.jobs.source_scan import run_source_scan
@@ -278,6 +279,12 @@ class JobScheduler:
             return pool.submit(self._run_technical_probe, job.id)
         if job.type is JobType.SYNTHETIC_ITEMS:
             return pool.submit(self._run_synthetic_items, job.id)
+        if job.type in {
+            JobType.REFERENCE_SAMPLES,
+            JobType.COPY_FILES,
+            JobType.MOVE_FILES,
+        }:
+            return pool.submit(self._run_file_operation, job.id)
         return pool.submit(self._fail_unsupported, job.id)
 
     def _run_source_scan(self, job_id: EntityId) -> Job:
@@ -348,6 +355,22 @@ class JobScheduler:
                 self._emit_job(cancelled, force=True)
                 return cancelled
             completed = run_synthetic_items(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
+            return completed
+        finally:
+            conn.close()
+
+    def _run_file_operation(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
+                return cancelled
+            completed = run_file_operation(conn, job, progress=self._progress)
             self._emit_job(completed, force=True)
             return completed
         finally:

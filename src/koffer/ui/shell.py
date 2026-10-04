@@ -1,4 +1,4 @@
-"""Dark application shell with navigation, S00–S07/S16 foundations, transport, shortcuts."""
+"""Dark application shell with navigation, S00–S07/S12/S13/S16 foundations, transport, shortcuts."""
 
 from __future__ import annotations
 
@@ -18,11 +18,14 @@ from PySide6.QtWidgets import (
 
 from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
+from koffer.domain.file_operations import FileOperationPlan
 from koffer.domain.ids import EntityId
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
 from koffer.ui.screens.activity import ActivityCenterScreen
 from koffer.ui.screens.collection_detail import CollectionDetailScreen
 from koffer.ui.screens.collections import CollectionsScreen
+from koffer.ui.screens.conflicts import ConflictsScreen
+from koffer.ui.screens.import_review import ImportReviewScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
 from koffer.ui.screens.sample_detail import SampleDetailScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
@@ -41,6 +44,8 @@ SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
 SCREEN_SAMPLE_DETAIL = "S07"
+SCREEN_IMPORT_REVIEW = "S12"
+SCREEN_CONFLICTS = "S13"
 SCREEN_ACTIVITY = "S16"
 
 
@@ -96,6 +101,8 @@ class MainWindow(QMainWindow):
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
         self._sample_detail = SampleDetailScreen(context.sample_service)
+        self._import_review = ImportReviewScreen(context.file_operation_service)
+        self._conflicts = ConflictsScreen(context.file_operation_service)
         self._activity = ActivityCenterScreen(context.scheduler)
 
         self._stack.addWidget(self._welcome)
@@ -105,6 +112,8 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
         self._stack.addWidget(self._sample_detail)
+        self._stack.addWidget(self._import_review)
+        self._stack.addWidget(self._conflicts)
         self._stack.addWidget(self._activity)
 
         self._welcome.add_source_requested.connect(self._pick_and_add_source)
@@ -117,6 +126,11 @@ class MainWindow(QMainWindow):
         self._library.selection_changed.connect(self._on_library_selection)
         self._library.open_sample_detail_requested.connect(self._open_sample_detail)
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
+        self._import_review.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
+        self._import_review.resolve_conflicts_requested.connect(self._open_conflicts_from_review)
+        self._import_review.execute_requested.connect(self._execute_import_plan)
+        self._conflicts.back_requested.connect(lambda: self.navigate(SCREEN_IMPORT_REVIEW))
+        self._conflicts.apply_requested.connect(self._return_from_conflicts)
 
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
@@ -153,8 +167,21 @@ class MainWindow(QMainWindow):
     def activity(self) -> ActivityCenterScreen:
         return self._activity
 
+    @property
+    def import_review(self) -> ImportReviewScreen:
+        return self._import_review
+
+    @property
+    def conflicts(self) -> ConflictsScreen:
+        return self._conflicts
+
     def current_screen_id(self) -> str:
         return self._current_screen
+
+    def open_file_operation_plan(self, plan: FileOperationPlan) -> None:
+        """Present S12 with a planned Reference/Copy/Move operation."""
+        self._import_review.show_plan(plan)
+        self.navigate(SCREEN_IMPORT_REVIEW)
 
     def navigate(self, screen_id: str) -> None:
         mapping = {
@@ -165,6 +192,8 @@ class MainWindow(QMainWindow):
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
             SCREEN_SAMPLE_DETAIL: self._sample_detail,
+            SCREEN_IMPORT_REVIEW: self._import_review,
+            SCREEN_CONFLICTS: self._conflicts,
             SCREEN_ACTIVITY: self._activity,
         }
         widget = mapping.get(screen_id)
@@ -182,6 +211,10 @@ class MainWindow(QMainWindow):
             self._source_detail.refresh()
         if screen_id == SCREEN_SAMPLE_DETAIL:
             self._sample_detail.refresh()
+        if screen_id == SCREEN_IMPORT_REVIEW:
+            self._import_review.refresh()
+        if screen_id == SCREEN_CONFLICTS:
+            self._conflicts.refresh()
         if screen_id == SCREEN_ACTIVITY:
             self._activity.refresh()
         self._stack.setCurrentWidget(widget)
@@ -279,6 +312,31 @@ class MainWindow(QMainWindow):
             sample_id = str(sample_id)
         self._sample_detail.show_sample(EntityId(sample_id))
         self.navigate(SCREEN_SAMPLE_DETAIL)
+
+    def _open_conflicts_from_review(self) -> None:
+        plan = self._import_review.plan
+        if plan is None:
+            return
+        self._conflicts.show_plan(plan)
+        self.navigate(SCREEN_CONFLICTS)
+
+    def _return_from_conflicts(self) -> None:
+        plan = self._conflicts.plan
+        if plan is not None:
+            self._import_review.show_plan(plan)
+        self.navigate(SCREEN_IMPORT_REVIEW)
+
+    def _execute_import_plan(self) -> None:
+        plan = self._import_review.plan
+        if plan is None:
+            return
+        try:
+            job_id = self._context.file_operation_service.execute(plan)
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not execute plan", str(exc))
+            return
+        del job_id
+        self.navigate(SCREEN_ACTIVITY)
 
     def _focus_library_search(self) -> None:
         if self._current_screen != SCREEN_LIBRARY:
