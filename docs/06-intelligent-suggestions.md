@@ -1,6 +1,6 @@
 # 6. Intelligent Suggestions
 
-Koffer may analyze Samples and propose useful classifications. The system reduces library maintenance rather than making irreversible decisions.
+Koffer analyzes Samples and proposes useful classifications. The system reduces library maintenance without making irreversible classification decisions.
 
 ## Evidence sources
 
@@ -11,15 +11,13 @@ Terms such as kick, snr, vox, 808, loop, 120bpm, or Cm can provide useful eviden
 A generic filename such as 07.wav can still be informative when found under a path like Soul / Rhodes / Chords / 90 BPM / 07.wav.
 
 ### Embedded metadata
-Where available, Koffer may use title, artist, genre, comments, tempo, and musical-key fields.
+Where available, Koffer uses title, artist, genre, comments, tempo, and musical-key fields as evidence.
 
 ### Audio properties
 Useful signals include duration, transient structure, spectral characteristics, tonal vs percussive content, silence, channel configuration, likely tempo, and likely key.
 
 ### Local model inference
-Koffer may use on-device audio models to produce semantic labels and audio embeddings.
-
-The current planning direction is to evaluate permissively licensed local models such as PANNs alongside deterministic DSP and path/metadata heuristics.
+Koffer supports on-device semantic audio inference and embeddings through a local provider. The V1 provider is PANNs-compatible and operates alongside deterministic DSP plus path/metadata heuristics. The application remains usable when the semantic model is not installed; model installation and licensing behavior are defined in `23-dependencies-models-and-licensing.md`.
 
 ## Confidence
 Suggestions should include confidence where useful.
@@ -36,12 +34,10 @@ Confidence communicates uncertainty; it must not imply that a suggestion is fact
 Users should be able to accept, reject, or edit one suggestion; accept several suggestions together; and apply accepted classification to a batch when appropriate.
 
 ## Learning from corrections
-A future Koffer version may use user corrections as local evidence for better suggestions.
-
-Any such learning should remain local by default and must not require sending the user's library to a hosted service.
+V1 records user accept/reject/edit outcomes as local review history and provenance. It does not retrain a model from those corrections. Any future adaptive learning remains local by default and requires a deliberate product/version decision.
 
 ## Privacy
-The target behavior is offline inference.
+Semantic inference is local and offline after required model artifacts are installed.
 
 Koffer should not upload audio for classification unless a future optional network feature is deliberately introduced and clearly disclosed.
 

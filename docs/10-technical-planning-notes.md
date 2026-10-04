@@ -2,7 +2,7 @@
 
 ## Status
 
-This document defines the target implementation shape that best supports the documented Koffer product. It is an architectural guide for future authorized development, not authorization to begin development.
+This document is an authoritative technical contract for the authorized Koffer implementation. Detailed module boundaries, schema, Job behavior, pipeline, testing, packaging, and execution order are defined in chapters 16–28.
 
 ## Runtime and UI
 
@@ -59,13 +59,13 @@ Exact resolved paths are displayed in About & Diagnostics.
 
 Koffer uses a capability layer rather than scattering codec-specific logic through the UI.
 
-The product ships with or reliably resolves the tools needed for supported decoding/encoding. FFmpeg/ffprobe are the preferred broad compatibility layer unless a later documented decision replaces them.
+FFmpeg/ffprobe are the authoritative broad compatibility layer for probing and rendering. Release packaging follows `21-packaging-ci-and-release.md` and records the exact distributed build/license configuration.
 
 Rendering is always treated as a Job and produces a new file by default.
 
 ## Embedded metadata
 
-Metadata read/write is isolated behind a format-aware service. Mutagen or an equivalent mature library is the preferred Python layer for supported container/tag formats.
+Metadata read/write is isolated behind a format-aware service implemented with Mutagen for supported container/tag formats.
 
 A metadata write:
 1. validates field support;
@@ -100,7 +100,7 @@ Every derived result carries an analysis version/provenance so stale outputs can
 
 ## Local models
 
-Local semantic inference is optional and modular.
+Local semantic inference is a required product capability with an optional-at-runtime model installation. The application remains usable when the semantic provider is disabled or its model is absent.
 
 Model requirements:
 - permissive distribution or clearly compatible license;
@@ -112,7 +112,7 @@ Model requirements:
 - inference cancellation between items;
 - no silent upload.
 
-The model layer may evolve without forcing UI or database concepts to change.
+The V1 semantic provider is PANNs-compatible. Its provider interface remains modular so a later documented model migration does not force UI or durable user-state changes.
 
 ## Worker architecture
 

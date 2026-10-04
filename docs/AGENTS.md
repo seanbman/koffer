@@ -2,11 +2,11 @@
 
 This file defines the operating rules for any human or software agent contributing to Koffer.
 
-Koffer is currently in **planning**. No implementation work should begin unless the project owner explicitly authorizes development.
+**Development is authorized.** All implementation must execute through the Dreadnought control plane described in `INSTRUCTIONS.md`. Cursor Project Arms work in scratch; Dreadnought independently verifies and promotes accepted changes to canonical `dev`.
 
 The documentation in this directory is the current source of truth for product behavior and design intent.
 
-The documentation is intentionally **end-state oriented**: it describes what the finished Koffer product is expected to be, even while the repository remains in planning. Do not weaken definitive product language into vague possibility language merely because implementation has not begun.
+The documentation is intentionally **end-state oriented** and authoritative: it describes the product being built. Do not weaken definitive product language into vague possibility language merely because a feature has not yet been implemented.
 
 The canonical product-definition set is:
 - `11-end-state-product-spec.md`
@@ -16,7 +16,7 @@ The canonical product-definition set is:
 - `15-ui-acceptance-contract.md`
 - `mockups/README.md` and the matching numbered SVG for each Screen ID.
 
-Future implementation Orders must cite the relevant Screen ID(s) and acceptance criteria.
+All implementation Orders must cite the relevant roadmap phase, Screen ID(s) when applicable, architecture modules, acceptance criteria, and tests.
 
 ## 1. Product identity
 
@@ -61,34 +61,23 @@ Update documentation when user-visible behavior changes.
 
 Do not rewrite documentation merely to justify an implementation shortcut.
 
-## 3. Planning vs development
+## 3. Development execution
 
-The repository may contain planning material before code exists.
+The product-definition phase is complete enough for implementation and development is authorized.
 
-When the project is in planning:
-- do not scaffold an application;
-- do not create placeholder architecture for its own sake;
-- do not select libraries permanently without documenting the tradeoff;
-- do not create database schemas unless explicitly requested;
-- do not convert provisional technical notes into commitments.
+Implementation must:
+- follow `INSTRUCTIONS.md` and the 14-phase roadmap;
+- use Dreadnought for decomposition, scratch dispatch, verification, promotion, Grapher/evaluation, and token reporting;
+- use Cursor Project Arms for bounded implementation Orders;
+- continue autonomously through routine engineering decisions;
+- keep canonical `dev` free of host-direct implementation;
+- treat documentation, tests, and acceptance evidence as part of each feature.
 
-Planning work should improve:
-- product behavior;
-- terminology;
-- workflows;
-- interaction design;
-- screen/state coverage;
-- safety rules;
-- technical evaluation criteria;
-- testable acceptance criteria.
+A launchable scaffold is not a milestone that ends the mission. The mission ends at the documented release gate.
 
-Planning is considered stronger when it removes ambiguity from the finished product. Prefer explicit end-state statements, named screens, concrete states, and acceptance criteria over open-ended brainstorming.
+## 4. Technical stack
 
-Once development is explicitly authorized, implementation must follow these instructions.
-
-## 4. Current technical direction
-
-The current preferred direction is:
+The V1 technical stack is:
 
 - Python
 - PySide6 / Qt
@@ -99,9 +88,7 @@ The current preferred direction is:
 - non-destructive sample preparation
 - background workers for expensive operations
 
-These are the current design choices, but they are not immutable.
-
-A different technical choice must have a clear product or engineering reason and must be documented before broad adoption.
+Detailed dependency choices and module boundaries are locked by chapters 16–23. A different foundational choice requires a documented architecture migration with evidence that product behavior, safety, packaging, and tests remain intact; do not casually substitute the stack.
 
 Do not replace the desktop architecture with Electron, a browser shell, a hosted web app, or a local web frontend merely because those approaches are familiar.
 
@@ -300,7 +287,7 @@ A partially analyzed Sample should still be browsable.
 
 Koffer's intelligent classification should be local-first.
 
-The planned inference system combines:
+The V1 inference system combines:
 1. filename evidence;
 2. directory-path evidence;
 3. embedded metadata;
@@ -309,7 +296,7 @@ The planned inference system combines:
 6. confidence/evidence fusion;
 7. user review.
 
-PANNs is currently an evaluation candidate, not a mandatory dependency.
+The V1 semantic provider is PANNs-compatible. Model artifacts remain outside Git and follow the manifest/download/license policy in `23-dependencies-models-and-licensing.md`.
 
 Any chosen model must be reviewed for:
 - license;
@@ -386,7 +373,7 @@ If models change, Koffer should be able to regenerate similarity indexes.
 
 ## 16. Persistence and database design
 
-SQLite is the current local-state candidate.
+SQLite is the V1 durable local-state database.
 
 Persistent user-authored data must be distinguishable from rebuildable derived data.
 
@@ -485,7 +472,7 @@ Do not break Linux accessibility tooling through unnecessary custom-drawn contro
 
 ## 21. Testing expectations
 
-Once development begins, tests should cover behavior with real failure modes rather than only happy paths.
+Tests must cover behavior with real failure modes rather than only happy paths.
 
 Required test areas should include:
 
@@ -680,7 +667,7 @@ Treat derived data as replaceable whenever practical.
 ## 30. Things agents must not do
 
 Do not:
-- begin implementation while the project is explicitly still planning;
+- bypass Dreadnought by implementing directly into canonical `dev`;
 - turn Koffer into a DAW;
 - replace the desktop product with a web application;
 - make cloud services mandatory for core use;
@@ -695,17 +682,23 @@ Do not:
 - change user-visible behavior without updating the manual;
 - invent new product requirements merely to complete a coding task.
 
-## 31. When requirements are unclear
+## 31. When a low-level detail is not explicitly specified
 
-If a requirement is missing but implementation can proceed safely with a conservative internal choice, keep the choice reversible and document it.
+Do not turn ordinary engineering ambiguity into a user approval gate.
 
-If a choice changes user-visible behavior, data safety, file formats, privacy, or the product boundary, do not silently decide it.
+Use this precedence:
+1. explicit product/acceptance documentation;
+2. system/data/job/pipeline contracts;
+3. safest reversible conventional implementation;
+4. measured evidence.
 
-Record the unresolved decision in documentation and request product direction before committing to irreversible behavior.
+Record material reversible choices in code/docs and continue.
+
+Stop only for the hard blocks listed in `INSTRUCTIONS.md`: unavailable required permission/credential, unresolved distribution legality with no fallback, direct canonical safety contradiction, or an unauthorized irreversible external action. A hard implementation problem is not a hard block.
 
 ## 32. Definition of done
 
-A development change is not complete merely because the code runs.
+A development change is not complete merely because the code runs. An Order is done only after Dreadnought verification and promotion; the project is done only after the product-complete and release gates in `INSTRUCTIONS.md` and `21-packaging-ci-and-release.md`.
 
 For applicable work, "done" means:
 - behavior matches the manual;

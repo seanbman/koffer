@@ -34,7 +34,7 @@ Koffer should provide the expectations of a mature Linux desktop application, in
 - clear error reporting and recovery;
 - offline-first operation for core library features.
 
-The exact Linux packaging strategy remains a planning decision, but Koffer is not intended to require a development environment or terminal command to use normally.
+Koffer's primary V1 distribution is a self-contained x86_64 Linux AppImage. End users do not require Python, a development environment, uv, a source checkout, or a terminal to use Koffer normally. Additional package formats may follow without changing the product architecture.
 
 ## What Koffer is not
 Koffer is not a digital audio workstation.
