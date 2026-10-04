@@ -15,6 +15,7 @@ from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import Job
 from koffer.domain.timestamps import utc_now_iso
 from koffer.jobs.source_scan import run_source_scan
+from koffer.jobs.technical_probe import run_technical_probe
 from koffer.persistence.connection import ConnectionFactory
 from koffer.repositories.jobs import JobRepository
 
@@ -118,11 +119,11 @@ class JobScheduler:
 
     def pause(self, job_id: EntityId) -> None:
         del job_id
-        raise UnsupportedOperationError("pause is not supported for source_scan Jobs")
+        raise UnsupportedOperationError("pause is not supported for this Job type")
 
     def resume(self, job_id: EntityId) -> None:
         del job_id
-        raise UnsupportedOperationError("resume is not supported for source_scan Jobs")
+        raise UnsupportedOperationError("resume is not supported for this Job type")
 
     def wait(self, job_id: EntityId, *, timeout: float | None = 30.0) -> Job:
         """Block until the Job finishes or ``timeout`` elapses (tests/helpers)."""
@@ -161,6 +162,8 @@ class JobScheduler:
     def _dispatch(self, job: Job) -> Future[Job]:
         if job.type is JobType.SOURCE_SCAN:
             return self._io_pool.submit(self._run_source_scan, job.id)
+        if job.type is JobType.TECHNICAL_PROBE:
+            return self._io_pool.submit(self._run_technical_probe, job.id)
         # Persist failure for unsupported types submitted early.
         return self._io_pool.submit(self._fail_unsupported, job.id)
 
@@ -179,7 +182,53 @@ class JobScheduler:
                 )
                 JobRepository(conn).update(cancelled)
                 return cancelled
-            return run_source_scan(conn, job)
+            completed = run_source_scan(conn, job)
+            self._queue_technical_probes(completed)
+            return completed
+        finally:
+            conn.close()
+
+    def _queue_technical_probes(self, scan_job: Job) -> None:
+        """Enqueue technical_probe for new/changed Samples discovered by a scan."""
+        if scan_job.state is not JobState.COMPLETED:
+            return
+        try:
+            summary = json.loads(scan_job.summary_json or "{}")
+        except json.JSONDecodeError:
+            return
+        raw_ids = summary.get("probe_sample_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return
+        sample_ids = [str(item) for item in raw_ids if item]
+        if not sample_ids:
+            return
+        try:
+            scope = json.loads(scan_job.scope_json)
+        except json.JSONDecodeError:
+            scope = {}
+        source_id = scope.get("source_id")
+        probe_scope: dict[str, Any] = {"sample_ids": sample_ids}
+        if isinstance(source_id, str) and source_id:
+            probe_scope["source_id"] = source_id
+        # Probe failures are visible on the probe Job; they never fail the scan Job.
+        self.submit(JobSpec(type=JobType.TECHNICAL_PROBE, scope=probe_scope))
+
+    def _run_technical_probe(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = replace(
+                    job,
+                    state=JobState.CANCELLED,
+                    completed_at=utc_now_iso(),
+                    stage="cancelled",
+                )
+                JobRepository(conn).update(cancelled)
+                return cancelled
+            return run_technical_probe(conn, job)
         finally:
             conn.close()
 

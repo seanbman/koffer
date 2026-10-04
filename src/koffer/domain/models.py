@@ -82,6 +82,23 @@ class Sample:
 
 
 @dataclass(frozen=True, slots=True)
+class TechnicalMetadata:
+    """One-to-one technical probe snapshot for a Sample (docs/17)."""
+
+    sample_id: EntityId
+    container_format: str
+    codec: str
+    duration_ms: int
+    sample_rate_hz: int
+    channels: int
+    probe_version: str
+    probed_at: str
+    bit_depth: int | None = None
+    channel_layout: str | None = None
+    bitrate: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Collection:
     """User-curated Sample grouping (membership never deletes files)."""
 

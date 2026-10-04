@@ -7,6 +7,7 @@ from koffer.repositories.jobs import JobRepository
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
 from koffer.repositories.suggestions import SuggestionRepository
+from koffer.repositories.technical_metadata import TechnicalMetadataRepository
 
 __all__ = [
     "ClassificationRepository",
@@ -17,4 +18,5 @@ __all__ = [
     "SourceExclusionRepository",
     "SourceRepository",
     "SuggestionRepository",
+    "TechnicalMetadataRepository",
 ]

@@ -31,6 +31,7 @@ from koffer.domain.models import (
     Sample,
     Source,
     Suggestion,
+    TechnicalMetadata,
 )
 from koffer.domain.timestamps import TIMESTAMP_CONVENTION, utc_now_iso
 
@@ -60,6 +61,7 @@ __all__ = [
     "SourceStatus",
     "Suggestion",
     "SuggestionStatus",
+    "TechnicalMetadata",
     "UnsupportedOperationError",
     "ValidationError",
     "new_entity_id",

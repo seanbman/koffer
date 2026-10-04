@@ -197,6 +197,7 @@ def _apply_discovery(
     updated = 0
     unchanged = 0
     fts_ids: list[EntityId] = []
+    probe_sample_ids: list[EntityId] = []
 
     for index, item in enumerate(discovered, start=1):
         rel = normalize_relative_path(item.relative_path)
@@ -223,6 +224,7 @@ def _apply_discovery(
             )
             samples_repo.create(sample)
             fts_ids.append(sample.id)
+            probe_sample_ids.append(sample.id)
             inserted += 1
         else:
             same_identity = prior.size_bytes == item.size_bytes and prior.mtime_ns == item.mtime_ns
@@ -258,6 +260,7 @@ def _apply_discovery(
                     )
                 )
                 fts_ids.append(prior.id)
+                probe_sample_ids.append(prior.id)
                 updated += 1
 
         if index % 50 == 0 or index == len(discovered):
@@ -312,6 +315,7 @@ def _apply_discovery(
                 "missing": missing,
                 "discovered": len(discovered),
                 "mode": str(mode),
+                "probe_sample_ids": [str(sample_id) for sample_id in probe_sample_ids],
             }
         ),
     )
