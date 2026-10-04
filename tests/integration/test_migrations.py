@@ -38,9 +38,9 @@ def test_fresh_temp_db_applies_migration_001(tmp_path: Path) -> None:
     conn = factory.get_connection()
     try:
         applied = apply_migrations(conn)
-        assert applied == [1]
+        assert applied == [1, 2]
         runner = MigrationRunner(conn)
-        assert runner.current_version() == 1
+        assert runner.current_version() == 2
         assert apply_migrations(conn) == []
 
         rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
@@ -48,12 +48,27 @@ def test_fresh_temp_db_applies_migration_001(tmp_path: Path) -> None:
         missing = REQUIRED_TABLES - names
         assert missing == set()
 
+        fts = conn.execute(
+            """
+            SELECT name FROM sqlite_master
+            WHERE type = 'table' AND name = 'sample_search_fts'
+            """
+        ).fetchone()
+        assert fts is not None
+
         version_row = conn.execute(
             "SELECT version, checksum FROM schema_migrations WHERE version = 1"
         ).fetchone()
         assert version_row is not None
         assert int(version_row[0]) == 1
         assert len(str(version_row[1])) == 64
+
+        version_two = conn.execute(
+            "SELECT version, checksum FROM schema_migrations WHERE version = 2"
+        ).fetchone()
+        assert version_two is not None
+        assert int(version_two[0]) == 2
+        assert len(str(version_two[1])) == 64
     finally:
         factory.close_thread_connection()
 
