@@ -5,6 +5,10 @@ from koffer.repositories.collections import CollectionMembership, CollectionRepo
 from koffer.repositories.exclusions import SourceExclusionRepository
 from koffer.repositories.job_items import JobItem, JobItemRepository
 from koffer.repositories.jobs import JobRepository
+from koffer.repositories.preparation_recipes import (
+    PreparationRecipeRepository,
+    PreparationRecipeRow,
+)
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.saved_searches import SavedSearchRepository
 from koffer.repositories.sources import SourceRepository
@@ -19,6 +23,8 @@ __all__ = [
     "JobItem",
     "JobItemRepository",
     "JobRepository",
+    "PreparationRecipeRepository",
+    "PreparationRecipeRow",
     "SampleRepository",
     "SavedSearchRepository",
     "SourceExclusionRepository",

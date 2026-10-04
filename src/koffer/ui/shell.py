@@ -1,4 +1,4 @@
-"""Dark application shell with S00–S07/S09/S12/S13/S16 foundations and transport."""
+"""Dark application shell with S00–S09/S12–S14/S16 foundations and transport."""
 
 from __future__ import annotations
 
@@ -28,7 +28,9 @@ from koffer.ui.screens.conflicts import ConflictsScreen
 from koffer.ui.screens.import_review import ImportReviewScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
 from koffer.ui.screens.metadata_editor import MetadataEditorScreen
+from koffer.ui.screens.render_export import RenderExportScreen
 from koffer.ui.screens.sample_detail import SampleDetailScreen
+from koffer.ui.screens.sample_preparation import SamplePreparationScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.welcome import WelcomeScreen
@@ -45,9 +47,11 @@ SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
 SCREEN_SAMPLE_DETAIL = "S07"
+SCREEN_SAMPLE_PREPARATION = "S08"
 SCREEN_METADATA_EDITOR = "S09"
 SCREEN_IMPORT_REVIEW = "S12"
 SCREEN_CONFLICTS = "S13"
+SCREEN_RENDER_EXPORT = "S14"
 SCREEN_ACTIVITY = "S16"
 
 
@@ -103,9 +107,11 @@ class MainWindow(QMainWindow):
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
         self._sample_detail = SampleDetailScreen(context.sample_service)
+        self._sample_preparation = SamplePreparationScreen(context.preparation_service)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
         self._import_review = ImportReviewScreen(context.file_operation_service)
         self._conflicts = ConflictsScreen(context.file_operation_service)
+        self._render_export = RenderExportScreen(context.preparation_service)
         self._activity = ActivityCenterScreen(context.scheduler)
 
         self._stack.addWidget(self._welcome)
@@ -115,9 +121,11 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
         self._stack.addWidget(self._sample_detail)
+        self._stack.addWidget(self._sample_preparation)
         self._stack.addWidget(self._metadata_editor)
         self._stack.addWidget(self._import_review)
         self._stack.addWidget(self._conflicts)
+        self._stack.addWidget(self._render_export)
         self._stack.addWidget(self._activity)
 
         self._welcome.add_source_requested.connect(self._pick_and_add_source)
@@ -131,6 +139,9 @@ class MainWindow(QMainWindow):
         self._library.open_sample_detail_requested.connect(self._open_sample_detail)
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
+        self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
+        self._sample_preparation.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
+        self._sample_preparation.export_requested.connect(self._open_render_export)
         self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._metadata_editor.execute_requested.connect(self._execute_metadata_plan)
         self._import_review.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
@@ -138,6 +149,8 @@ class MainWindow(QMainWindow):
         self._import_review.execute_requested.connect(self._execute_import_plan)
         self._conflicts.back_requested.connect(lambda: self.navigate(SCREEN_IMPORT_REVIEW))
         self._conflicts.apply_requested.connect(self._return_from_conflicts)
+        self._render_export.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_PREPARATION))
+        self._render_export.execute_requested.connect(self._execute_render_plan)
 
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
@@ -185,6 +198,12 @@ class MainWindow(QMainWindow):
     def metadata_editor(self) -> MetadataEditorScreen:
         return self._metadata_editor
 
+    def sample_preparation(self) -> SamplePreparationScreen:
+        return self._sample_preparation
+
+    def render_export(self) -> RenderExportScreen:
+        return self._render_export
+
     def current_screen_id(self) -> str:
         return self._current_screen
 
@@ -198,6 +217,16 @@ class MainWindow(QMainWindow):
         self._metadata_editor.show_samples(sample_ids)
         self.navigate(SCREEN_METADATA_EDITOR)
 
+    def open_sample_preparation(self, sample_id: EntityId) -> None:
+        """Present S08 for the given Sample id."""
+        self._sample_preparation.show_sample(sample_id)
+        self.navigate(SCREEN_SAMPLE_PREPARATION)
+
+    def open_render_export(self, sample_id: EntityId) -> None:
+        """Present S14 for the given Sample id."""
+        self._render_export.show_sample(sample_id)
+        self.navigate(SCREEN_RENDER_EXPORT)
+
     def navigate(self, screen_id: str) -> None:
         mapping = {
             SCREEN_WELCOME: self._welcome,
@@ -207,9 +236,11 @@ class MainWindow(QMainWindow):
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
             SCREEN_SAMPLE_DETAIL: self._sample_detail,
+            SCREEN_SAMPLE_PREPARATION: self._sample_preparation,
             SCREEN_METADATA_EDITOR: self._metadata_editor,
             SCREEN_IMPORT_REVIEW: self._import_review,
             SCREEN_CONFLICTS: self._conflicts,
+            SCREEN_RENDER_EXPORT: self._render_export,
             SCREEN_ACTIVITY: self._activity,
         }
         widget = mapping.get(screen_id)
@@ -227,12 +258,16 @@ class MainWindow(QMainWindow):
             self._source_detail.refresh()
         if screen_id == SCREEN_SAMPLE_DETAIL:
             self._sample_detail.refresh()
+        if screen_id == SCREEN_SAMPLE_PREPARATION:
+            self._sample_preparation.refresh()
         if screen_id == SCREEN_METADATA_EDITOR:
             self._metadata_editor.refresh()
         if screen_id == SCREEN_IMPORT_REVIEW:
             self._import_review.refresh()
         if screen_id == SCREEN_CONFLICTS:
             self._conflicts.refresh()
+        if screen_id == SCREEN_RENDER_EXPORT:
+            self._render_export.refresh()
         if screen_id == SCREEN_ACTIVITY:
             self._activity.refresh()
         self._stack.setCurrentWidget(widget)
@@ -335,6 +370,28 @@ class MainWindow(QMainWindow):
         if not isinstance(sample_id, str):
             sample_id = str(sample_id)
         self.open_metadata_editor([EntityId(sample_id)])
+
+    def _open_sample_preparation(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        self.open_sample_preparation(EntityId(sample_id))
+
+    def _open_render_export(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        self.open_render_export(EntityId(sample_id))
+
+    def _execute_render_plan(self) -> None:
+        plan = self._render_export.plan
+        if plan is None:
+            return
+        try:
+            job_id = self._context.preparation_service.execute_render(plan)
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not start render", str(exc))
+            return
+        del job_id
+        self.navigate(SCREEN_ACTIVITY)
 
     def _execute_metadata_plan(self) -> None:
         plan = self._metadata_editor.plan

@@ -16,6 +16,13 @@ from koffer.services.metadata import (
     MetadataService,
 )
 from koffer.services.playback import PlaybackService, PlaybackState
+from koffer.services.preparation import (
+    PreparationRecipe,
+    PreparationService,
+    PreviewHandle,
+    RenderOptions,
+    RenderPlan,
+)
 from koffer.services.samples import ProvenanceCategory, SampleDetail, SampleService
 from koffer.services.search import SearchService
 from koffer.services.sources import SourceDetailView, SourceListItem, SourceService
@@ -32,7 +39,12 @@ __all__ = [
     "PlaybackService",
     "PlaybackState",
     "PlannedFileItem",
+    "PreparationRecipe",
+    "PreparationService",
+    "PreviewHandle",
     "ProvenanceCategory",
+    "RenderOptions",
+    "RenderPlan",
     "SampleDetail",
     "SampleService",
     "SearchService",

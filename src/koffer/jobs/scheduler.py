@@ -19,6 +19,7 @@ from koffer.jobs.file_ops import run_file_operation
 from koffer.jobs.lanes import default_analysis_workers, lane_for_job_type
 from koffer.jobs.metadata_write import run_metadata_write
 from koffer.jobs.progress import ProgressEvent, ProgressListener, ProgressThrottle
+from koffer.jobs.render import run_render
 from koffer.jobs.source_scan import run_source_scan
 from koffer.jobs.synthetic import run_synthetic_items
 from koffer.jobs.technical_probe import run_technical_probe
@@ -288,6 +289,8 @@ class JobScheduler:
             return pool.submit(self._run_file_operation, job.id)
         if job.type is JobType.METADATA_WRITE:
             return pool.submit(self._run_metadata_write, job.id)
+        if job.type is JobType.RENDER:
+            return pool.submit(self._run_render, job.id)
         return pool.submit(self._fail_unsupported, job.id)
 
     def _run_source_scan(self, job_id: EntityId) -> Job:
@@ -390,6 +393,22 @@ class JobScheduler:
                 self._emit_job(cancelled, force=True)
                 return cancelled
             completed = run_metadata_write(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
+            return completed
+        finally:
+            conn.close()
+
+    def _run_render(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
+                return cancelled
+            completed = run_render(conn, job, progress=self._progress)
             self._emit_job(completed, force=True)
             return completed
         finally:

@@ -17,6 +17,7 @@ from koffer.services.collections import CollectionService
 from koffer.services.file_operations import FileOperationService
 from koffer.services.metadata import MetadataService
 from koffer.services.playback import PlaybackService
+from koffer.services.preparation import PreparationService
 from koffer.services.samples import SampleService
 from koffer.services.search import SearchService
 from koffer.services.sources import SourceService
@@ -41,6 +42,7 @@ class AppContext:
     metadata_service: MetadataService
     sample_service: SampleService
     file_operation_service: FileOperationService
+    preparation_service: PreparationService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -65,6 +67,7 @@ class AppContext:
         metadata_service = MetadataService(factory, scheduler)
         sample_service = SampleService(factory, metadata_service)
         file_operation_service = FileOperationService(factory, scheduler)
+        preparation_service = PreparationService(factory, scheduler)
         return cls(
             paths=paths,
             connection_factory=factory,
@@ -77,6 +80,7 @@ class AppContext:
             metadata_service=metadata_service,
             sample_service=sample_service,
             file_operation_service=file_operation_service,
+            preparation_service=preparation_service,
         )
 
     @classmethod
