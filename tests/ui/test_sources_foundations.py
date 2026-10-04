@@ -40,7 +40,8 @@ def test_s00_add_source_registers_and_enters_library(qtbot: object, tmp_path: Pa
         sources = context.source_service.list()
         assert len(sources) == 1
         assert sources[0].root_path == str(source_dir.resolve())
-        assert sources[0].status is SourceStatus.ONLINE
+        # Scan is queued immediately; status may already be scanning.
+        assert sources[0].status in {SourceStatus.ONLINE, SourceStatus.SCANNING}
         assert window.current_screen_id() == "S01"
         # Adding a Source must not move/mutate audio bytes.
         assert audio.is_file()

@@ -1,4 +1,4 @@
-"""Application composition root: paths, DB, scheduler, SourceService."""
+"""Application composition root: paths, DB, scheduler, Source/Search services."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from koffer.config.paths import AppPaths, resolve_app_paths
 from koffer.jobs.scheduler import JobScheduler
 from koffer.persistence.connection import ConnectionFactory
 from koffer.persistence.migrations import apply_migrations
+from koffer.services.search import SearchService
 from koffer.services.sources import SourceService
 
 
@@ -23,6 +24,7 @@ class AppContext:
     connection_factory: ConnectionFactory
     scheduler: JobScheduler
     source_service: SourceService
+    search_service: SearchService
     _owns_scheduler: bool = True
 
     @classmethod
@@ -33,17 +35,19 @@ class AppContext:
         database_name: str = "library.sqlite3",
         io_workers: int = 4,
     ) -> AppContext:
-        """Create directories, migrate SQLite, and wire SourceService."""
+        """Create directories, migrate SQLite, and wire application services."""
         paths.ensure()
         factory = ConnectionFactory(paths.data_dir / database_name)
         apply_migrations(factory.get_connection())
         scheduler = JobScheduler(factory, io_workers=io_workers)
         source_service = SourceService(factory, scheduler)
+        search_service = SearchService(factory)
         return cls(
             paths=paths,
             connection_factory=factory,
             scheduler=scheduler,
             source_service=source_service,
+            search_service=search_service,
         )
 
     @classmethod

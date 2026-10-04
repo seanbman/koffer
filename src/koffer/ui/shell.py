@@ -19,7 +19,7 @@ from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
-from koffer.ui.screens.library import LibraryPlaceholderScreen
+from koffer.ui.screens.library import LibraryBrowserScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.welcome import WelcomeScreen
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stack, stretch=1)
 
         self._welcome = WelcomeScreen()
-        self._library = LibraryPlaceholderScreen()
+        self._library = LibraryBrowserScreen(context.search_service)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
 
@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
         widget = mapping.get(screen_id)
         if widget is None:
             return
+        if screen_id == SCREEN_LIBRARY:
+            self._library.refresh()
         if screen_id == SCREEN_SOURCES:
             self._sources.refresh()
         if screen_id == SCREEN_SOURCE_DETAIL:
