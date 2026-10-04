@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+<title>Koffer compact mark</title>
+<rect x="24" y="24" width="976" height="976" rx="150" fill="#0B0B0B"/>
+<g fill="#C97845">
+  <rect x="346" y="168" width="332" height="44" rx="14"/>
+  <path d="M382 212h260c0 54 35 82 94 119 52 32 84 83 94 144H194c10-61 42-112 94-144 59-37 94-65 94-119z"/>
+  <path d="M194 486h636v244c0 91-47 161-117 208-50 34-116 50-201 50s-151-16-201-50c-70-47-117-117-117-208V486z"/>
+</g>
+<g fill="#0B0B0B">
+  <rect x="232" y="472" width="560" height="18" rx="7"/>
+  <rect x="232" y="760" width="560" height="18" rx="7"/>
+  <circle cx="325" cy="620" r="13"/>
+  <rect x="364" y="582" width="24" height="76" rx="12"/>
+  <rect x="422" y="548" width="24" height="144" rx="12"/>
+  <rect x="500" y="514" width="24" height="212" rx="12"/>
+  <rect x="578" y="548" width="24" height="144" rx="12"/>
+  <rect x="636" y="582" width="24" height="76" rx="12"/>
+  <circle cx="699" cy="620" r="13"/>
+</g>
+</svg>

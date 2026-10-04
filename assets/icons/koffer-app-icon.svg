@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+<title>Koffer application icon</title>
+<rect x="24" y="24" width="976" height="976" rx="150" fill="#0B0B0B"/>
+<g fill="#C97845">
+  <rect x="369" y="176" width="286" height="38" rx="12"/>
+  <path d="M400 214h224c0 50 30 75 82 107 46 29 74 73 82 127H236c8-54 36-98 82-127 52-32 82-57 82-107z"/>
+  <path d="M236 458h552v206c0 82-43 145-104 187-43 30-99 44-172 44s-129-14-172-44c-61-42-104-105-104-187V458z"/>
+  <rect x="366" y="861" width="292" height="30" rx="10"/>
+</g>
+<g fill="#0B0B0B">
+  <rect x="270" y="448" width="484" height="16" rx="6"/>
+  <rect x="270" y="696" width="484" height="16" rx="6"/>
+  <circle cx="353" cy="580" r="11"/>
+  <rect x="387" y="548" width="20" height="64" rx="10"/>
+  <rect x="437" y="520" width="20" height="120" rx="10"/>
+  <rect x="502" y="492" width="20" height="176" rx="10"/>
+  <rect x="567" y="520" width="20" height="120" rx="10"/>
+  <rect x="617" y="548" width="20" height="64" rx="10"/>
+  <circle cx="671" cy="580" r="11"/>
+</g>
+<text x="512" y="960" text-anchor="middle" fill="#C97845"
+ font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="78" font-weight="900"
+ letter-spacing="12">KOFFER</text>
+</svg>
