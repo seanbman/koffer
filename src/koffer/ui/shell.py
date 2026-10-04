@@ -1,4 +1,4 @@
-"""Dark application shell with navigation, S00–S07 foundations, transport, shortcuts."""
+"""Dark application shell with navigation, S00–S07/S16 foundations, transport, shortcuts."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
+from koffer.ui.screens.activity import ActivityCenterScreen
 from koffer.ui.screens.collection_detail import CollectionDetailScreen
 from koffer.ui.screens.collections import CollectionsScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
@@ -40,6 +41,7 @@ SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
 SCREEN_SAMPLE_DETAIL = "S07"
+SCREEN_ACTIVITY = "S16"
 
 
 class MainWindow(QMainWindow):
@@ -94,6 +96,7 @@ class MainWindow(QMainWindow):
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
         self._sample_detail = SampleDetailScreen(context.sample_service)
+        self._activity = ActivityCenterScreen(context.scheduler)
 
         self._stack.addWidget(self._welcome)
         self._stack.addWidget(self._library)
@@ -102,6 +105,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
         self._stack.addWidget(self._sample_detail)
+        self._stack.addWidget(self._activity)
 
         self._welcome.add_source_requested.connect(self._pick_and_add_source)
         self._welcome.directory_dropped.connect(self._add_source_path)
@@ -117,6 +121,10 @@ class MainWindow(QMainWindow):
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self._focus_search_shortcut.setObjectName("focusSearchShortcut")
         self._focus_search_shortcut.activated.connect(self._focus_library_search)
+
+        self._activity_shortcut = QShortcut(QKeySequence("Ctrl+Shift+A"), self)
+        self._activity_shortcut.setObjectName("activityCenterShortcut")
+        self._activity_shortcut.activated.connect(lambda: self.navigate(SCREEN_ACTIVITY))
 
         self.setCentralWidget(shell)
         self._sync_initial_route()
@@ -141,6 +149,10 @@ class MainWindow(QMainWindow):
     def collection_detail(self) -> CollectionDetailScreen:
         return self._collection_detail
 
+    @property
+    def activity(self) -> ActivityCenterScreen:
+        return self._activity
+
     def current_screen_id(self) -> str:
         return self._current_screen
 
@@ -153,6 +165,7 @@ class MainWindow(QMainWindow):
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
             SCREEN_SAMPLE_DETAIL: self._sample_detail,
+            SCREEN_ACTIVITY: self._activity,
         }
         widget = mapping.get(screen_id)
         if widget is None:
@@ -169,6 +182,8 @@ class MainWindow(QMainWindow):
             self._source_detail.refresh()
         if screen_id == SCREEN_SAMPLE_DETAIL:
             self._sample_detail.refresh()
+        if screen_id == SCREEN_ACTIVITY:
+            self._activity.refresh()
         self._stack.setCurrentWidget(widget)
         self._current_screen = screen_id
         self._update_nav_checked()
@@ -204,6 +219,12 @@ class MainWindow(QMainWindow):
         self._nav_sources.clicked.connect(lambda: self.navigate(SCREEN_SOURCES))
         column.addWidget(self._nav_sources)
 
+        self._nav_activity = QPushButton("Activity")
+        self._nav_activity.setObjectName("navButton")
+        self._nav_activity.setCheckable(True)
+        self._nav_activity.clicked.connect(lambda: self.navigate(SCREEN_ACTIVITY))
+        column.addWidget(self._nav_activity)
+
         column.addStretch(1)
         return rail
 
@@ -213,6 +234,7 @@ class MainWindow(QMainWindow):
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
         )
         self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
+        self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
 
     def _sync_initial_route(self) -> None:
         if self._context.source_service.list():

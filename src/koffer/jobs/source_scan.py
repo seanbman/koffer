@@ -17,6 +17,8 @@ from koffer.filesystem.scanner import (
     enumerate_audio_files,
     normalize_relative_path,
 )
+from koffer.jobs.cancel import is_cancel_requested, mark_cancelled, persist_progress
+from koffer.jobs.progress import ProgressEvent, ProgressThrottle
 from koffer.persistence.search_index import SearchIndexService
 from koffer.repositories.exclusions import SourceExclusionRepository
 from koffer.repositories.jobs import JobRepository
@@ -24,7 +26,12 @@ from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
 
 
-def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
+def run_source_scan(
+    conn: sqlite3.Connection,
+    job: Job,
+    *,
+    progress: ProgressThrottle | None = None,
+) -> Job:
     """Execute a persisted ``source_scan`` Job on the calling thread's connection."""
     jobs = JobRepository(conn)
     sources = SourceRepository(conn)
@@ -46,6 +53,10 @@ def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
         progress_total=None,
     )
     jobs.update(running)
+    _emit_progress(progress, running, force=True)
+
+    if is_cancel_requested(conn, job.id):
+        return mark_cancelled(conn, running)
 
     source = sources.get(source_id)
     if source is None:
@@ -58,6 +69,7 @@ def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
             summary_json=json.dumps({"error": "source_not_found"}),
         )
         jobs.update(failed)
+        _emit_progress(progress, failed, force=True)
         return failed
 
     scanning = replace(
@@ -74,6 +86,7 @@ def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
     try:
         progressing = replace(running, stage="enumerate")
         jobs.update(progressing)
+        _emit_progress(progress, progressing, force=True)
         discovered = enumerate_audio_files(
             root,
             recursive=source.recursive,
@@ -88,6 +101,7 @@ def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
             sources_repo=sources,
             jobs_repo=jobs,
             error=exc,
+            progress=progress,
         )
 
     return _apply_discovery(
@@ -100,6 +114,7 @@ def run_source_scan(conn: sqlite3.Connection, job: Job) -> Job:
         sources_repo=sources,
         jobs_repo=jobs,
         search=search,
+        progress=progress,
     )
 
 
@@ -112,6 +127,7 @@ def _fail_offline(
     sources_repo: SourceRepository,
     jobs_repo: JobRepository,
     error: EnumerationFailed,
+    progress: ProgressThrottle | None = None,
 ) -> Job:
     """Mark Source offline/unavailable without deleting or mass-missing Samples."""
     del conn  # connection owned by repositories
@@ -165,6 +181,7 @@ def _fail_offline(
         ),
     )
     jobs_repo.update(completed)
+    _emit_progress(progress, completed, force=True)
     return completed
 
 
@@ -179,17 +196,17 @@ def _apply_discovery(
     sources_repo: SourceRepository,
     jobs_repo: JobRepository,
     search: SearchIndexService,
+    progress: ProgressThrottle | None = None,
 ) -> Job:
-    del conn
     now = utc_now_iso()
-    jobs_repo.update(
-        replace(
-            job,
-            stage="compare",
-            progress_current=0,
-            progress_total=len(discovered),
-        )
+    compare_job = replace(
+        job,
+        stage="compare",
+        progress_current=0,
+        progress_total=len(discovered),
     )
+    jobs_repo.update(compare_job)
+    _emit_progress(progress, compare_job, force=True)
 
     existing = {s.relative_path: s for s in samples_repo.list_by_source(source.id)}
     seen_paths: set[str] = set()
@@ -200,6 +217,41 @@ def _apply_discovery(
     probe_sample_ids: list[EntityId] = []
 
     for index, item in enumerate(discovered, start=1):
+        if is_cancel_requested(conn, job.id):
+            # Preserve rows already upserted; stop before missing-mark / FTS refresh.
+            sources_repo.update(
+                replace(
+                    source,
+                    status=SourceStatus.ONLINE if source.enabled else SourceStatus.DISABLED,
+                    updated_at=utc_now_iso(),
+                )
+            )
+            summary = json.dumps(
+                {
+                    "inserted": inserted,
+                    "updated": updated,
+                    "unchanged": unchanged,
+                    "missing": 0,
+                    "discovered": len(discovered),
+                    "mode": str(mode),
+                    "cancelled": True,
+                    "probe_sample_ids": [str(sample_id) for sample_id in probe_sample_ids],
+                }
+            )
+            cancelled = mark_cancelled(
+                conn,
+                replace(
+                    compare_job,
+                    progress_current=index - 1,
+                    progress_total=len(discovered),
+                    stage="cancelled",
+                    summary_json=summary,
+                ),
+                summary_json=summary,
+            )
+            _emit_progress(progress, cancelled, force=True)
+            return cancelled
+
         rel = normalize_relative_path(item.relative_path)
         seen_paths.add(rel)
         prior = existing.get(rel)
@@ -264,14 +316,21 @@ def _apply_discovery(
                 updated += 1
 
         if index % 50 == 0 or index == len(discovered):
-            jobs_repo.update(
-                replace(
-                    job,
-                    stage="upsert",
-                    progress_current=index,
-                    progress_total=len(discovered),
-                )
+            progress_job = persist_progress(
+                conn,
+                compare_job,
+                stage="upsert",
+                progress_current=index,
+                progress_total=len(discovered),
             )
+        else:
+            progress_job = replace(
+                compare_job,
+                stage="upsert",
+                progress_current=index,
+                progress_total=len(discovered),
+            )
+        _emit_progress(progress, progress_job)
 
     # Mark unseen as missing only after successful enumeration.
     missing = 0
@@ -300,7 +359,7 @@ def _apply_discovery(
         )
     )
     completed = replace(
-        job,
+        compare_job,
         state=JobState.COMPLETED,
         stage="commit",
         completed_at=now,
@@ -320,4 +379,25 @@ def _apply_discovery(
         ),
     )
     jobs_repo.update(completed)
+    _emit_progress(progress, completed, force=True)
     return completed
+
+
+def _emit_progress(
+    progress: ProgressThrottle | None,
+    job: Job,
+    *,
+    force: bool = False,
+) -> None:
+    if progress is None:
+        return
+    progress.publish(
+        ProgressEvent(
+            job_id=job.id,
+            state=job.state,
+            stage=job.stage,
+            current=job.progress_current,
+            total=job.progress_total,
+        ),
+        force=force,
+    )

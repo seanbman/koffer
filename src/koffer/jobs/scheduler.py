@@ -1,4 +1,4 @@
-"""Bounded JobScheduler with durable Job rows (docs/18)."""
+"""Bounded multi-lane JobScheduler with cancel, recovery, and progress throttle."""
 
 from __future__ import annotations
 
@@ -9,15 +9,38 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from typing import Any
 
-from koffer.domain.enums import JobState, JobType
+from koffer.domain.enums import JobLane, JobState, JobType
 from koffer.domain.errors import NotFoundError, UnsupportedOperationError
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import Job
 from koffer.domain.timestamps import utc_now_iso
+from koffer.jobs.cancel import mark_cancelled
+from koffer.jobs.lanes import default_analysis_workers, lane_for_job_type
+from koffer.jobs.progress import ProgressEvent, ProgressListener, ProgressThrottle
 from koffer.jobs.source_scan import run_source_scan
+from koffer.jobs.synthetic import run_synthetic_items
 from koffer.jobs.technical_probe import run_technical_probe
 from koffer.persistence.connection import ConnectionFactory
 from koffer.repositories.jobs import JobRepository
+
+_ABANDONED_STATES = frozenset(
+    {
+        JobState.RUNNING,
+        JobState.PAUSE_REQUESTED,
+        JobState.PAUSED,
+        JobState.CANCEL_REQUESTED,
+    }
+)
+
+_TERMINAL_STATES = frozenset(
+    {
+        JobState.COMPLETED,
+        JobState.COMPLETED_WITH_ERRORS,
+        JobState.FAILED,
+        JobState.CANCELLED,
+        JobState.INTERRUPTED,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,15 +67,90 @@ class JobScheduler:
         connection_factory: ConnectionFactory,
         *,
         io_workers: int = 4,
+        analysis_workers: int | None = None,
+        mutation_workers: int = 1,
+        render_workers: int = 1,
+        maintenance_workers: int = 1,
+        progress_min_interval_s: float = 0.05,
+        recover_on_start: bool = True,
     ) -> None:
         self._factory = connection_factory
-        self._io_pool = ThreadPoolExecutor(
-            max_workers=max(1, io_workers),
-            thread_name_prefix="koffer-io",
+        analysis_n = (
+            default_analysis_workers() if analysis_workers is None else max(1, analysis_workers)
         )
+        self._lane_max_workers: dict[JobLane, int] = {
+            JobLane.IO: max(1, io_workers),
+            JobLane.ANALYSIS: analysis_n,
+            JobLane.MUTATION: max(1, mutation_workers),
+            JobLane.RENDER: max(1, render_workers),
+            JobLane.MAINTENANCE: max(1, maintenance_workers),
+        }
+        self._pools: dict[JobLane, ThreadPoolExecutor] = {
+            lane: ThreadPoolExecutor(
+                max_workers=workers,
+                thread_name_prefix=f"koffer-{lane}",
+            )
+            for lane, workers in self._lane_max_workers.items()
+        }
         self._lock = threading.RLock()
         self._futures: dict[str, Future[Job]] = {}
         self._closed = False
+        self._progress = ProgressThrottle(min_interval_s=progress_min_interval_s)
+        if recover_on_start:
+            self.recover_interrupted()
+
+    @property
+    def progress(self) -> ProgressThrottle:
+        return self._progress
+
+    def add_progress_listener(self, listener: ProgressListener) -> None:
+        self._progress.add_listener(listener)
+
+    def remove_progress_listener(self, listener: ProgressListener) -> None:
+        self._progress.remove_listener(listener)
+
+    def lane_workers(self) -> dict[JobLane, int]:
+        """Return configured max workers per lane (tests/diagnostics)."""
+        return dict(self._lane_max_workers)
+
+    def recover_interrupted(self) -> list[EntityId]:
+        """Mark abandoned in-flight Jobs interrupted (startup / simulated restart)."""
+        conn = self._factory.open_connection()
+        try:
+            repo = JobRepository(conn)
+            marked: list[EntityId] = []
+            now = utc_now_iso()
+            for state in _ABANDONED_STATES:
+                for job in repo.list_by_state(state):
+                    interrupted = replace(
+                        job,
+                        state=JobState.INTERRUPTED,
+                        stage="interrupted",
+                        completed_at=now,
+                        error_code="interrupted_by_restart",
+                        summary_json=json.dumps(
+                            {
+                                "previous_state": str(state),
+                                "reason": "abandoned_on_startup",
+                            }
+                        ),
+                    )
+                    repo.update(interrupted)
+                    marked.append(job.id)
+                    self._progress.publish(
+                        ProgressEvent(
+                            job_id=job.id,
+                            state=JobState.INTERRUPTED,
+                            stage="interrupted",
+                            current=job.progress_current,
+                            total=job.progress_total,
+                            message="interrupted_by_restart",
+                        ),
+                        force=True,
+                    )
+            return marked
+        finally:
+            conn.close()
 
     def submit(self, spec: JobSpec) -> EntityId:
         """Persist a queued Job and schedule execution; return Job ID."""
@@ -76,6 +174,16 @@ class JobScheduler:
             JobRepository(conn).create(job)
             future = self._dispatch(job)
             self._futures[str(job_id)] = future
+            self._progress.publish(
+                ProgressEvent(
+                    job_id=job_id,
+                    state=JobState.QUEUED,
+                    stage="queued",
+                    current=0,
+                    total=None,
+                ),
+                force=True,
+            )
             return job_id
 
     def get(self, job_id: EntityId) -> Job:
@@ -103,18 +211,25 @@ class JobScheduler:
         job = repo.get(job_id)
         if job is None:
             raise NotFoundError(f"Job not found: {job_id}")
-        if job.state in {
-            JobState.COMPLETED,
-            JobState.COMPLETED_WITH_ERRORS,
-            JobState.FAILED,
-            JobState.CANCELLED,
-        }:
+        if job.state in _TERMINAL_STATES:
             return
-        # Cooperative cancel: source_scan checks CANCEL_REQUESTED before start.
-        repo.update(replace(job, state=JobState.CANCEL_REQUESTED))
+        # Cooperative cancel: runners check CANCEL_REQUESTED between items.
+        updated = replace(job, state=JobState.CANCEL_REQUESTED, stage="cancel_requested")
+        repo.update(updated)
+        self._progress.publish(
+            ProgressEvent(
+                job_id=job_id,
+                state=JobState.CANCEL_REQUESTED,
+                stage="cancel_requested",
+                current=job.progress_current,
+                total=job.progress_total,
+            ),
+            force=True,
+        )
         with self._lock:
             future = self._futures.get(str(job_id))
             if future is not None and not future.done():
+                # Cancels only if the worker has not started; running Jobs cooperate.
                 future.cancel()
 
     def pause(self, job_id: EntityId) -> None:
@@ -138,16 +253,10 @@ class JobScheduler:
                 # Runner persists FAILED/COMPLETED_WITH_ERRORS; surface via get().
                 pass
         else:
-            # Job may have been submitted in another process; poll DB.
             deadline = None if timeout is None else time.monotonic() + timeout
             while True:
                 job = self.get(job_id)
-                if job.state in {
-                    JobState.COMPLETED,
-                    JobState.COMPLETED_WITH_ERRORS,
-                    JobState.FAILED,
-                    JobState.CANCELLED,
-                }:
+                if job.state in _TERMINAL_STATES:
                     return job
                 if deadline is not None and time.monotonic() >= deadline:
                     break
@@ -157,15 +266,19 @@ class JobScheduler:
     def shutdown(self, *, wait: bool = True) -> None:
         with self._lock:
             self._closed = True
-        self._io_pool.shutdown(wait=wait, cancel_futures=not wait)
+        for pool in self._pools.values():
+            pool.shutdown(wait=wait, cancel_futures=not wait)
 
     def _dispatch(self, job: Job) -> Future[Job]:
+        lane = lane_for_job_type(job.type)
+        pool = self._pools[lane]
         if job.type is JobType.SOURCE_SCAN:
-            return self._io_pool.submit(self._run_source_scan, job.id)
+            return pool.submit(self._run_source_scan, job.id)
         if job.type is JobType.TECHNICAL_PROBE:
-            return self._io_pool.submit(self._run_technical_probe, job.id)
-        # Persist failure for unsupported types submitted early.
-        return self._io_pool.submit(self._fail_unsupported, job.id)
+            return pool.submit(self._run_technical_probe, job.id)
+        if job.type is JobType.SYNTHETIC_ITEMS:
+            return pool.submit(self._run_synthetic_items, job.id)
+        return pool.submit(self._fail_unsupported, job.id)
 
     def _run_source_scan(self, job_id: EntityId) -> Job:
         conn = self._factory.open_connection()
@@ -174,15 +287,11 @@ class JobScheduler:
             if job is None:
                 raise NotFoundError(f"Job not found: {job_id}")
             if job.state is JobState.CANCEL_REQUESTED:
-                cancelled = replace(
-                    job,
-                    state=JobState.CANCELLED,
-                    completed_at=utc_now_iso(),
-                    stage="cancelled",
-                )
-                JobRepository(conn).update(cancelled)
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
                 return cancelled
-            completed = run_source_scan(conn, job)
+            completed = run_source_scan(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
             self._queue_technical_probes(completed)
             return completed
         finally:
@@ -210,7 +319,6 @@ class JobScheduler:
         probe_scope: dict[str, Any] = {"sample_ids": sample_ids}
         if isinstance(source_id, str) and source_id:
             probe_scope["source_id"] = source_id
-        # Probe failures are visible on the probe Job; they never fail the scan Job.
         self.submit(JobSpec(type=JobType.TECHNICAL_PROBE, scope=probe_scope))
 
     def _run_technical_probe(self, job_id: EntityId) -> Job:
@@ -220,15 +328,28 @@ class JobScheduler:
             if job is None:
                 raise NotFoundError(f"Job not found: {job_id}")
             if job.state is JobState.CANCEL_REQUESTED:
-                cancelled = replace(
-                    job,
-                    state=JobState.CANCELLED,
-                    completed_at=utc_now_iso(),
-                    stage="cancelled",
-                )
-                JobRepository(conn).update(cancelled)
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
                 return cancelled
-            return run_technical_probe(conn, job)
+            completed = run_technical_probe(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
+            return completed
+        finally:
+            conn.close()
+
+    def _run_synthetic_items(self, job_id: EntityId) -> Job:
+        conn = self._factory.open_connection()
+        try:
+            job = JobRepository(conn).get(job_id)
+            if job is None:
+                raise NotFoundError(f"Job not found: {job_id}")
+            if job.state is JobState.CANCEL_REQUESTED:
+                cancelled = mark_cancelled(conn, job)
+                self._emit_job(cancelled, force=True)
+                return cancelled
+            completed = run_synthetic_items(conn, job, progress=self._progress)
+            self._emit_job(completed, force=True)
+            return completed
         finally:
             conn.close()
 
@@ -248,6 +369,19 @@ class JobScheduler:
                 summary_json=json.dumps({"error": "unsupported_job_type"}),
             )
             repo.update(failed)
+            self._emit_job(failed, force=True)
             return failed
         finally:
             conn.close()
+
+    def _emit_job(self, job: Job, *, force: bool = False) -> None:
+        self._progress.publish(
+            ProgressEvent(
+                job_id=job.id,
+                state=job.state,
+                stage=job.stage,
+                current=job.progress_current,
+                total=job.progress_total,
+            ),
+            force=force,
+        )

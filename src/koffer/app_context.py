@@ -53,7 +53,8 @@ class AppContext:
         paths.ensure()
         factory = ConnectionFactory(paths.data_dir / database_name)
         apply_migrations(factory.get_connection())
-        scheduler = JobScheduler(factory, io_workers=io_workers)
+        # recover_on_start marks abandoned running Jobs interrupted (docs/24).
+        scheduler = JobScheduler(factory, io_workers=io_workers, recover_on_start=True)
         source_service = SourceService(factory, scheduler)
         search_service = SearchService(factory)
         playback_service = PlaybackService()

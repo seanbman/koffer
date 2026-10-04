@@ -1,12 +1,14 @@
 """Pure domain types and enums (no Qt/SQLite/filesystem side effects)."""
 
 from koffer.domain.enums import (
+    ActivityGroup,
     AnalysisRunState,
     ClassificationDimension,
     ClassificationSource,
     CollectionSortMode,
     ExclusionPatternType,
     JobItemState,
+    JobLane,
     JobState,
     JobType,
     SampleAvailability,
@@ -51,6 +53,7 @@ from koffer.domain.timestamps import TIMESTAMP_CONVENTION, utc_now_iso
 __all__ = [
     "DEFAULT_PAGE_LIMIT",
     "TIMESTAMP_CONVENTION",
+    "ActivityGroup",
     "AnalysisRunState",
     "ApplicationError",
     "Classification",
@@ -64,6 +67,7 @@ __all__ = [
     "ExclusionRule",
     "Job",
     "JobItemState",
+    "JobLane",
     "JobState",
     "JobType",
     "NotFoundError",

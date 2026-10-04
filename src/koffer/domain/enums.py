@@ -105,6 +105,27 @@ class JobType(StrEnum):
     REBUILD_SIMILARITY = "rebuild_similarity"
     CACHE_CLEAR = "cache_clear"
     DATABASE_VERIFY = "database_verify"
+    # Harness Job: cooperative cancel / interrupted-recovery tests (no filesystem mutation).
+    SYNTHETIC_ITEMS = "synthetic_items"
+
+
+class JobLane(StrEnum):
+    """Bounded scheduler executor lanes (docs/18)."""
+
+    IO = "io"
+    ANALYSIS = "analysis"
+    MUTATION = "mutation"
+    RENDER = "render"
+    MAINTENANCE = "maintenance"
+
+
+class ActivityGroup(StrEnum):
+    """Activity Center grouping buckets (S16)."""
+
+    RUNNING = "running"
+    QUEUED = "queued"
+    COMPLETED = "completed"
+    NEEDS_ATTENTION = "needs_attention"
 
 
 class JobItemState(StrEnum):
