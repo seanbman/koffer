@@ -50,6 +50,11 @@ Provisional direction: Python, PySide6/Qt, SQLite, local analysis, local ML infe
 
 These are planning choices, not implementation commitments.
 
+## Development instructions
+
+### [AGENTS.md](AGENTS.md)
+Comprehensive contributor and agent rules covering planning vs development, product boundaries, Linux desktop requirements, filesystem and metadata safety, non-destructive audio handling, local inference, architecture boundaries, testing, licensing, privacy, Git discipline, and definition of done.
+
 ## UI mockups
 Low-fidelity mockups are stored in [mockups/](mockups/README.md).
 
