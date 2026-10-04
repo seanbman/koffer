@@ -1,22 +1,23 @@
 # Koffer Documentation Index
 
-Koffer is a dark-themed Linux desktop application for discovering, organizing, searching, previewing, classifying, preparing, and maintaining metadata for audio samples.
+Koffer is a **full-fledged, dark-themed Linux desktop application** for discovering, organizing, searching, previewing, classifying, preparing, and maintaining metadata for audio samples.
 
 This documentation is the living product manual and primary design authority during planning. Koffer is **not yet in development**.
 
 ## Product principles
 - Koffer is an **audio sample library**, not a DAW.
+- Koffer is an installable Linux desktop application, not a web wrapper or browser-dependent tool.
 - Existing files remain safe unless the user explicitly chooses to move, replace, or update them.
 - Library organization is metadata-first rather than dependent on one rigid filesystem hierarchy.
 - Koffer can read and deliberately update compatible embedded audio metadata, including artwork.
 - Suggestions made by local analysis or AI are always reviewable suggestions.
 - Core library use should remain useful offline.
-- The desktop experience is designed primarily for Linux and a dark UI.
+- Desktop-native interaction, background work, file access, keyboard use, and window behavior are first-class design requirements.
 
 ## Manual chapters
 
 ### 1. [Product Overview](01-product-overview.md)
-Purpose, audience, product boundary, core vocabulary, user journey, and non-destructive philosophy.
+Purpose, audience, full desktop-application expectations, product boundary, core vocabulary, user journey, and non-destructive philosophy.
 
 ### 2. [Library and Sources](02-library-and-sources.md)
 Adding directories, recursive scanning, removable storage, rescanning, exclusions, missing files, and Source status.
@@ -42,10 +43,10 @@ Library location, cache, analysis controls, file-operation safeguards, changed f
 ## Design documentation
 
 ### 9. [UI and Interaction Design](09-ui-and-interaction-design.md)
-Three-pane desktop layout, sidebar, results browser, Inspector, player, import review, keyboard workflow, and dark-theme principles.
+Desktop-first interaction, three-pane layout, sidebar, results browser, Inspector, player, import review, keyboard workflow, drag-and-drop, long-running work, and dark-theme principles.
 
 ### 10. [Technical Planning Notes](10-technical-planning-notes.md)
-Provisional direction: Python, PySide6/Qt, SQLite, local analysis, local ML inference, non-destructive edit recipes, and background indexing.
+Provisional direction: Python, PySide6/Qt, SQLite, local analysis, local ML inference, desktop integration, Linux packaging, non-destructive edit recipes, and background indexing.
 
 These are planning choices, not implementation commitments.
 
@@ -66,3 +67,4 @@ The mockups show structure and workflow rather than final branding, iconography,
 5. Koffer should not acquire DAW features unless the product boundary is deliberately reconsidered.
 6. Destructive or source-modifying file operations must remain explicit.
 7. AI or analysis results must remain distinguishable from user-confirmed metadata.
+8. Desktop-native behavior is a product requirement, not an optional layer added after core development.
