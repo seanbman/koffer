@@ -1,4 +1,4 @@
-"""Dark application shell with navigation, S00/S01/S05/S06, transport, shortcuts."""
+"""Dark application shell with navigation, S00/S01/S03/S04/S05/S06, transport, shortcuts."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
+from koffer.ui.screens.collection_detail import CollectionDetailScreen
+from koffer.ui.screens.collections import CollectionsScreen
 from koffer.ui.screens.library import LibraryBrowserScreen
 from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
@@ -32,6 +34,8 @@ CANVAS_COLOR = CANVAS
 
 SCREEN_WELCOME = "S00"
 SCREEN_LIBRARY = "S01"
+SCREEN_COLLECTIONS = "S03"
+SCREEN_COLLECTION_DETAIL = "S04"
 SCREEN_SOURCES = "S05"
 SCREEN_SOURCE_DETAIL = "S06"
 
@@ -83,11 +87,15 @@ class MainWindow(QMainWindow):
 
         self._welcome = WelcomeScreen()
         self._library = LibraryBrowserScreen(context)
+        self._collections = CollectionsScreen(context.collection_service)
+        self._collection_detail = CollectionDetailScreen(context.collection_service)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
 
         self._stack.addWidget(self._welcome)
         self._stack.addWidget(self._library)
+        self._stack.addWidget(self._collections)
+        self._stack.addWidget(self._collection_detail)
         self._stack.addWidget(self._sources)
         self._stack.addWidget(self._source_detail)
 
@@ -96,6 +104,8 @@ class MainWindow(QMainWindow):
         self._sources.add_source_requested.connect(self._pick_and_add_source)
         self._sources.source_selected.connect(self._open_source_detail)
         self._source_detail.back_requested.connect(lambda: self.navigate(SCREEN_SOURCES))
+        self._collections.collection_selected.connect(self._open_collection_detail)
+        self._collection_detail.back_requested.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
         self._library.selection_changed.connect(self._on_library_selection)
 
         self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
@@ -117,6 +127,14 @@ class MainWindow(QMainWindow):
     def library(self) -> LibraryBrowserScreen:
         return self._library
 
+    @property
+    def collections(self) -> CollectionsScreen:
+        return self._collections
+
+    @property
+    def collection_detail(self) -> CollectionDetailScreen:
+        return self._collection_detail
+
     def current_screen_id(self) -> str:
         return self._current_screen
 
@@ -124,6 +142,8 @@ class MainWindow(QMainWindow):
         mapping = {
             SCREEN_WELCOME: self._welcome,
             SCREEN_LIBRARY: self._library,
+            SCREEN_COLLECTIONS: self._collections,
+            SCREEN_COLLECTION_DETAIL: self._collection_detail,
             SCREEN_SOURCES: self._sources,
             SCREEN_SOURCE_DETAIL: self._source_detail,
         }
@@ -132,6 +152,10 @@ class MainWindow(QMainWindow):
             return
         if screen_id == SCREEN_LIBRARY:
             self._library.refresh()
+        if screen_id == SCREEN_COLLECTIONS:
+            self._collections.refresh()
+        if screen_id == SCREEN_COLLECTION_DETAIL:
+            self._collection_detail.refresh()
         if screen_id == SCREEN_SOURCES:
             self._sources.refresh()
         if screen_id == SCREEN_SOURCE_DETAIL:
@@ -159,6 +183,12 @@ class MainWindow(QMainWindow):
         self._nav_library.clicked.connect(lambda: self.navigate(SCREEN_LIBRARY))
         column.addWidget(self._nav_library)
 
+        self._nav_collections = QPushButton("Collections")
+        self._nav_collections.setObjectName("navButton")
+        self._nav_collections.setCheckable(True)
+        self._nav_collections.clicked.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
+        column.addWidget(self._nav_collections)
+
         self._nav_sources = QPushButton("Sources")
         self._nav_sources.setObjectName("navButton")
         self._nav_sources.setCheckable(True)
@@ -170,6 +200,9 @@ class MainWindow(QMainWindow):
 
     def _update_nav_checked(self) -> None:
         self._nav_library.setChecked(self._current_screen == SCREEN_LIBRARY)
+        self._nav_collections.setChecked(
+            self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
+        )
         self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
 
     def _sync_initial_route(self) -> None:
@@ -204,6 +237,12 @@ class MainWindow(QMainWindow):
         self._source_detail.show_source(EntityId(source_id))
         self.navigate(SCREEN_SOURCE_DETAIL)
 
+    def _open_collection_detail(self, collection_id: object) -> None:
+        if not isinstance(collection_id, str):
+            collection_id = str(collection_id)
+        self._collection_detail.show_collection(EntityId(collection_id))
+        self.navigate(SCREEN_COLLECTION_DETAIL)
+
     def _focus_library_search(self) -> None:
         if self._current_screen != SCREEN_LIBRARY:
             self.navigate(SCREEN_LIBRARY)
@@ -226,6 +265,6 @@ def create_main_window(
     *,
     directory_picker: DirectoryPicker | None = None,
 ) -> MainWindow:
-    """Create the Phase 3 shell; builds a default AppContext when omitted."""
+    """Create the Phase 4 shell; builds a default AppContext when omitted."""
     ctx = context or AppContext.open_default()
     return MainWindow(ctx, directory_picker=directory_picker)

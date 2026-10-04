@@ -173,3 +173,29 @@ class CollectionRepository:
 
     def list_sample_ids(self, collection_id: EntityId) -> list[EntityId]:
         return [membership.sample_id for membership in self.list_memberships(collection_id)]
+
+    def set_manual_positions(
+        self,
+        collection_id: EntityId,
+        ordered_sample_ids: list[EntityId],
+    ) -> None:
+        """Assign contiguous manual_position values; DB-only, never touches files."""
+        for index, sample_id in enumerate(ordered_sample_ids):
+            self._conn.execute(
+                """
+                UPDATE collection_samples
+                SET manual_position = ?
+                WHERE collection_id = ? AND sample_id = ?
+                """,
+                (index, str(collection_id), str(sample_id)),
+            )
+
+    def has_membership(self, collection_id: EntityId, sample_id: EntityId) -> bool:
+        row = self._conn.execute(
+            """
+            SELECT 1 FROM collection_samples
+            WHERE collection_id = ? AND sample_id = ?
+            """,
+            (str(collection_id), str(sample_id)),
+        ).fetchone()
+        return row is not None
