@@ -6,6 +6,18 @@ Koffer is currently in **planning**. No implementation work should begin unless 
 
 The documentation in this directory is the current source of truth for product behavior and design intent.
 
+The documentation is intentionally **end-state oriented**: it describes what the finished Koffer product is expected to be, even while the repository remains in planning. Do not weaken definitive product language into vague possibility language merely because implementation has not begun.
+
+The canonical product-definition set is:
+- `11-end-state-product-spec.md`
+- `12-screen-catalog.md`
+- `13-ui-design-system.md`
+- `14-navigation-and-user-flows.md`
+- `15-ui-acceptance-contract.md`
+- `mockups/README.md` and the matching numbered SVG for each Screen ID.
+
+Future implementation Orders must cite the relevant Screen ID(s) and acceptance criteria.
+
 ## 1. Product identity
 
 Koffer is a **full-fledged Linux desktop application** for discovering, organizing, searching, previewing, classifying, preparing, and maintaining metadata for audio samples.
@@ -28,11 +40,15 @@ Before implementing or modifying user-visible behavior, read the relevant files 
 
 Start with:
 - `INDEX.md`
-- `01-product-overview.md`
+- `11-end-state-product-spec.md`
+- `12-screen-catalog.md`
+- `13-ui-design-system.md`
+- `14-navigation-and-user-flows.md`
+- `15-ui-acceptance-contract.md`
 - `09-ui-and-interaction-design.md`
 - `10-technical-planning-notes.md`
 
-Then read the chapter associated with the feature being changed.
+Then read the domain chapter and numbered SVG mockup associated with the feature being changed.
 
 The living manual is the product contract.
 
@@ -61,9 +77,12 @@ Planning work should improve:
 - terminology;
 - workflows;
 - interaction design;
+- screen/state coverage;
 - safety rules;
 - technical evaluation criteria;
 - testable acceptance criteria.
+
+Planning is considered stronger when it removes ambiguity from the finished product. Prefer explicit end-state statements, named screens, concrete states, and acceptance criteria over open-ended brainstorming.
 
 Once development is explicitly authorized, implementation must follow these instructions.
 

@@ -1,119 +1,142 @@
 # 9. UI and Interaction Design
 
-This chapter documents the initial interaction model. It is planning material, not a frozen visual specification.
+## Status
 
-## Desktop-first interaction model
+This chapter defines the intended Koffer desktop interface. It is no longer a loose collection of possible layouts. Detailed screen behavior lives in [12-screen-catalog.md](12-screen-catalog.md), visual rules in [13-ui-design-system.md](13-ui-design-system.md), flows in [14-navigation-and-user-flows.md](14-navigation-and-user-flows.md), and implementation acceptance in [15-ui-acceptance-contract.md](15-ui-acceptance-contract.md).
 
-Koffer is designed as a full Linux desktop application.
+## Desktop application model
 
-The UI should follow desktop interaction expectations rather than mobile or web conventions. This includes real window management, strong keyboard navigation, context menus where appropriate, drag-and-drop, native file pickers, persistent window state, and dense data views suitable for large libraries.
+Koffer is a full Linux desktop application. It uses real desktop windows, focus behavior, native file/directory pickers, drag-and-drop, keyboard shortcuts, context menus, clipboard support, persistent window state, and non-blocking background work.
 
-The application should feel comfortable alongside other Linux desktop tools used by musicians and producers.
+The application is not responsive toward a mobile layout and is not designed as a browser page.
 
-## Overall layout
-The primary desktop window uses three functional regions:
-1. Navigation / Library sidebar
-2. Sample browser
-3. Inspector
+## Primary shell
 
-A persistent player/status area may sit along the bottom.
+The default workspace has:
+1. a left navigation rail;
+2. a central browser/workspace;
+3. an optional right Inspector;
+4. a persistent bottom transport/status bar;
+5. global access to Activity.
 
-See the [Library Browser mockup](mockups/library-browser.svg).
+The central browser remains the primary surface when the window narrows. The Inspector collapses before the browser becomes unusable.
 
-## Navigation sidebar
-Initial destinations:
-- All Samples
-- One-shots
-- Loops
-- Phrases
-- Tracks
-- Instruments
-- Genres / Styles
-- Collections
-- Favourites
-- Sources
+## Navigation
 
-Collections and Sources may expand inline.
+Primary destinations:
+- Library;
+- Favourites;
+- Recents;
+- Review;
+- Collections;
+- Saved Searches;
+- Sources;
+- Activity;
+- Settings.
 
-The sidebar should communicate library structure, not expose the raw filesystem as the only navigation model.
+Collections and Sources may expand inline. Raw directory trees are not the primary navigation model.
 
-## Sample browser
-The center pane is optimized for high-volume browsing.
+## Library browser
 
-It includes prominent search, filter chips/facets, sortable results, multi-selection, clear playback affordance, analysis/suggestion state, and quick Collection/favourite actions.
+The Library Browser is a compact, high-volume table optimized for tens of thousands of Samples.
 
-The browser should remain useful with tens of thousands of indexed files.
+It provides:
+- dominant search;
+- visible filters;
+- sortable/resizable columns;
+- multi-selection;
+- keyboard row navigation;
+- playback;
+- favourite;
+- Collection actions;
+- availability state;
+- analysis/review state;
+- contextual Inspector.
 
 ## Inspector
-The right pane displays the selected Sample.
 
-It includes waveform, playback controls, technical metadata, musical metadata, suggestions, tags, file location, Collection membership, and editable embedded metadata where supported.
+The Inspector displays the selected Sample without replacing the browser.
 
-The Inspector can expand into the preparation view for detailed waveform editing.
+It shows:
+- identity/artwork;
+- waveform;
+- transport;
+- technical facts;
+- classifications;
+- Suggestions;
+- tags;
+- file location;
+- Collection membership;
+- recipe state.
 
-See the [Sample Inspector mockup](mockups/sample-inspector.svg).
+The expanded Sample Detail screen adds full history and metadata editing entry points.
 
-## Import review
-When users choose Copy or Move, Koffer should provide a review surface rather than performing the operation immediately.
+## Focused workspaces
 
-The same review pattern can surface suggested classifications for newly discovered material.
+Koffer uses dedicated focused screens for work that requires more room or stronger confirmation:
+- Search & Filters;
+- Sample Preparation;
+- Metadata Editor;
+- Suggestions Review;
+- Similar Sounds;
+- Import / Organize Review;
+- Conflicts & Duplicates;
+- Render / Export;
+- Offline / Missing Recovery;
+- Activity;
+- Settings;
+- Maintenance.
 
-See the [Import and Suggestion Review mockup](mockups/import-review.svg).
+## Playback
 
-## Native desktop behaviors
+Playback remains available during normal browsing and inspection. Moving between metadata screens does not unnecessarily stop the active preview.
 
-Koffer should support, where appropriate:
-- multi-selection with standard Shift/Ctrl behavior;
-- drag-and-drop of folders and audio files into the library;
-- drag-and-drop of Samples into Collections;
-- context menus for file/library actions;
-- system clipboard;
-- keyboard traversal between panes;
-- familiar open/save/directory dialogs;
-- remembering window size, position, pane widths, and view preferences;
-- multiple windows or auxiliary dialogs only where they materially improve workflow.
+The player shows:
+- play/pause;
+- restart;
+- current position and duration;
+- loop state;
+- preview gain;
+- active Sample identity.
 
-## Keyboard workflow
-The application should be pleasant to use without constant mouse travel.
+## Background work
 
-Planning goals:
-- focus search quickly;
-- move through results with arrow keys;
-- play/stop selected Sample;
+Scanning, analysis, waveform generation, similarity indexing, file operations, rendering, maintenance, and backups run outside the UI thread.
+
+The user can continue browsing while these Jobs run. Activity state is visible globally and detailed in the Activity Center.
+
+## File safety in the UI
+
+Source-modifying actions use stronger visual treatment than ordinary library actions.
+
+Reference, classification, Collection membership, and preparation recipes are non-destructive.
+
+Move, replace, delete, write-in-place, and overwrite are explicit and reviewed before execution.
+
+## Theme and density
+
+Koffer is dark by default, uses restrained Clay accents, and prioritizes text and waveform contrast.
+
+The UI is dense enough for serious library work but avoids unnecessary chrome. Tables and compact metadata are preferred over large cards for Sample browsing.
+
+## Keyboard behavior
+
+The keyboard is a first-class interaction path.
+
+Core goals:
+- focus search instantly;
+- traverse results;
+- play/stop selection;
 - favourite;
 - add to Collection;
-- open Inspector;
-- accept/reject suggestions;
-- invoke common file and metadata actions.
+- open Sample Detail;
+- accept/reject Suggestions;
+- open Preparation;
+- invoke Organize and Metadata actions;
+- close focused workspaces and return to prior browser context.
 
-Exact shortcuts will be documented after workflow design stabilizes.
+Exact shortcuts are editable in Settings.
 
-## Long-running work
+## Complete visual reference
 
-Scanning, waveform generation, metadata extraction, and inference should never make the desktop window feel frozen.
-
-The UI should provide progress, status, pause/cancel where technically reasonable, and useful recovery information when a task fails.
-
-## Dark theme
-Koffer is dark-themed by default.
-
-Design priorities:
-- strong text contrast;
-- restrained surfaces;
-- clear selected/focused states;
-- waveform visibility;
-- metadata hierarchy;
-- accents used for status rather than decoration.
-
-## Density
-This is a desktop library tool and can be information-dense, but should not become visually noisy.
-
-The browser favors rows and compact metadata. The Inspector provides detail on demand.
-
-## Window behavior
-The three-pane layout should degrade gracefully when the window narrows:
-- Inspector can collapse;
-- sidebar can narrow or hide;
-- browser remains primary.
-
-No mobile UI is planned. Koffer is a Linux desktop application.
+The full screen set is in [mockups/](mockups/README.md). Every product-owned screen listed in the Screen Catalog has a corresponding SVG mockup.

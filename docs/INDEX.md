@@ -2,74 +2,116 @@
 
 Koffer is a **full-fledged, dark-themed Linux desktop application** for discovering, organizing, searching, previewing, classifying, preparing, and maintaining metadata for audio samples.
 
-This documentation is the living product manual and primary design authority during planning. Koffer is **not yet in development**.
+The repository is currently in **documentation-first planning**. The product is described optimistically as the finished end state so future agents can implement against a stable contract. No implementation begins until the project owner explicitly authorizes development.
+
+## Canonical reading order
+
+For any future implementation work, read these first:
+
+1. [End-State Product Specification](11-end-state-product-spec.md)
+2. [Screen Catalog](12-screen-catalog.md)
+3. [UI Design System](13-ui-design-system.md)
+4. [Navigation and User Flows](14-navigation-and-user-flows.md)
+5. [UI and Product Acceptance Contract](15-ui-acceptance-contract.md)
+6. [Development Instructions](AGENTS.md)
+7. the relevant domain chapter
+8. the matching [UI mockup](mockups/README.md)
 
 ## Product principles
-- Koffer is an **audio sample library**, not a DAW.
-- Koffer is an installable Linux desktop application, not a web wrapper or browser-dependent tool.
-- Existing files remain safe unless the user explicitly chooses to move, replace, or update them.
-- Library organization is metadata-first rather than dependent on one rigid filesystem hierarchy.
-- Koffer can read and deliberately update compatible embedded audio metadata, including artwork.
-- Suggestions made by local analysis or AI are always reviewable suggestions.
-- Core library use should remain useful offline.
-- Desktop-native interaction, background work, file access, keyboard use, and window behavior are first-class design requirements.
 
-## Manual chapters
+- Koffer is an **audio sample library and preparation workbench**, not a DAW.
+- Koffer is an installable Linux desktop application, not a web wrapper.
+- Existing files remain safe unless the user explicitly chooses to modify, move, replace, or delete them.
+- Library organization is metadata-first.
+- Embedded metadata and artwork are deliberately editable with explicit write targets.
+- Local analysis produces reviewable Suggestions rather than silent truth.
+- Core library use works offline.
+- Background work never freezes the primary desktop workflow.
+- Every major product surface has a documented screen ID and SVG reference.
+
+## Domain manual
 
 ### 1. [Product Overview](01-product-overview.md)
-Purpose, audience, full desktop-application expectations, product boundary, core vocabulary, user journey, and non-destructive philosophy.
+Purpose, audience, desktop expectations, core vocabulary, user journey, and non-destructive philosophy.
 
 ### 2. [Library and Sources](02-library-and-sources.md)
-Adding directories, recursive scanning, removable storage, rescanning, exclusions, missing files, and Source status.
+Sources, scanning, removable storage, rescanning, exclusions, missing files, and Source state.
 
 ### 3. [Import and File Management](03-import-and-file-management.md)
-Reference, Copy, Move, metadata write targets, conflicts, duplicate awareness, destination handling, batch operations, and safety.
+Reference, Copy, Move, metadata write targets, conflicts, duplicate awareness, batch operations, and safety.
 
 ### 4. [Browsing, Search, and Collections](04-browsing-search-and-collections.md)
-Filename and metadata search, filters, sorting, saved searches, Collections, favourites, recents, and similar-sound discovery.
+Search, filtering, sorting, Saved Searches, Collections, favourites, recents, and similarity.
 
 ### 5. [Sample Classification and Metadata](05-classification-and-metadata.md)
-Sample Type, Instrument/Source, Role, Genre/Style, Character, embedded metadata, artist/author, album data, artwork, tempo, key, technical metadata, and user tags.
+Classification dimensions, embedded metadata, artwork, tempo/key, technical facts, and user tags.
 
 ### 6. [Intelligent Suggestions](06-intelligent-suggestions.md)
-Inference from filenames, folder context, metadata, audio properties, local models, confidence, review, corrections, and privacy.
+Evidence, local inference, confidence, review, corrections, background analysis, and privacy.
 
 ### 7. [Playback and Sample Preparation](07-playback-and-sample-preparation.md)
-Preview, waveform navigation, trim, fades, envelope, gain, normalization, pitch, key, stretch, reverse, conversion, and rendering.
+Preview, waveform, trim, fades, gain, normalization, pitch, stretch, reverse, conversion, and rendering.
 
 ### 8. [Safety, Settings, and Library Maintenance](08-safety-settings-and-maintenance.md)
-Library location, cache, analysis controls, file-operation safeguards, changed files, backups, and offline behavior.
+Safeguards, paths, cache, analysis settings, rebuilds, changed files, backup, and local-first behavior.
 
-## Design documentation
+## Product and design authority
 
 ### 9. [UI and Interaction Design](09-ui-and-interaction-design.md)
-Desktop-first interaction, three-pane layout, sidebar, results browser, Inspector, player, import review, keyboard workflow, drag-and-drop, long-running work, and dark-theme principles.
+Desktop shell, browser, Inspector, focused workspaces, playback, background work, safety, density, and keyboard behavior.
 
-### 10. [Technical Planning Notes](10-technical-planning-notes.md)
-Provisional direction: Python, PySide6/Qt, SQLite, local analysis, local ML inference, desktop integration, Linux packaging, non-destructive edit recipes, and background indexing.
+### 10. [Technical Product Contract](10-technical-planning-notes.md)
+Target runtime, PySide6/Qt, SQLite, workers, audio/metadata boundaries, local analysis, XDG paths, AppImage packaging, diagnostics, and tests.
 
-These are planning choices, not implementation commitments.
+### 11. [End-State Product Specification](11-end-state-product-spec.md)
+Definitive description of what the finished Koffer product is.
+
+### 12. [Screen Catalog](12-screen-catalog.md)
+Complete inventory S00–S22 with entry points, purpose, regions, actions, and state expectations.
+
+### 13. [UI Design System](13-ui-design-system.md)
+Reference geometry, colors, typography, controls, tables, Inspector, waveforms, focus, accessibility, and motion.
+
+### 14. [Navigation and User Flows](14-navigation-and-user-flows.md)
+Screen map and full user journeys for discovery, search, classification, organization, metadata, preparation, recovery, and maintenance.
+
+### 15. [UI and Product Acceptance Contract](15-ui-acceptance-contract.md)
+Agent-facing completion rules and screen-by-screen acceptance criteria.
 
 ## Development instructions
 
 ### [AGENTS.md](AGENTS.md)
-Comprehensive contributor and agent rules covering planning vs development, product boundaries, Linux desktop requirements, filesystem and metadata safety, non-destructive audio handling, local inference, architecture boundaries, testing, licensing, privacy, Git discipline, and definition of done.
+Mandatory operating rules for humans and agents. Documentation remains authoritative, the repository remains in planning until explicitly authorized, and future implementation must use the documented product contracts.
 
-## UI mockups
-Low-fidelity mockups are stored in [mockups/](mockups/README.md).
+## Complete UI mockups
 
-- [Library Browser](mockups/library-browser.svg)
-- [Sample Inspector / Preparation View](mockups/sample-inspector.svg)
-- [Import and Suggestion Review](mockups/import-review.svg)
+The complete structural mockup set is indexed in [mockups/README.md](mockups/README.md).
 
-The mockups show structure and workflow rather than final branding, iconography, spacing, or polish.
+The set covers:
+- first run;
+- library/search;
+- Collections;
+- Sources;
+- Sample detail and preparation;
+- metadata;
+- Suggestions;
+- similarity;
+- file operations and conflicts;
+- rendering;
+- recovery;
+- Activity;
+- all Settings surfaces;
+- maintenance;
+- diagnostics;
+- navigation map.
 
 ## Documentation rules
-1. User-visible behavior should be documented here before implementation.
-2. When behavior changes, the relevant chapter should be updated.
-3. The manual describes user experience, not internal code structure.
-4. Technical planning stays separate and must not quietly redefine user behavior.
-5. Koffer should not acquire DAW features unless the product boundary is deliberately reconsidered.
-6. Destructive or source-modifying file operations must remain explicit.
-7. AI or analysis results must remain distinguishable from user-confirmed metadata.
-8. Desktop-native behavior is a product requirement, not an optional layer added after core development.
+
+1. User-visible behavior is documented before implementation.
+2. The end-state docs describe what Koffer **is**, not what it might someday be.
+3. Product behavior outranks implementation convenience.
+4. Mockups and Screen IDs provide a stable cross-reference for Orders, tests, and reviews.
+5. Technical architecture must serve the documented product and safety model.
+6. Destructive/source-modifying operations remain explicit.
+7. Suggestions remain distinguishable from user-confirmed metadata.
+8. Any implementation deviation requires a documentation decision, not silent drift.

@@ -1,122 +1,207 @@
-# 10. Technical Planning Notes
+# 10. Technical Product Contract
 
-**Status: planning only. No development has begun.**
+## Status
 
-This file records the current technical direction so product documentation and future implementation can converge without treating early choices as permanent.
+This document defines the target implementation shape that best supports the documented Koffer product. It is an architectural guide for future authorized development, not authorization to begin development.
 
-## Application class
+## Runtime and UI
 
-Koffer must be delivered as a **full-fledged Linux desktop application**.
+Koffer is a Python 3.12+ desktop application built with PySide6 / Qt 6.
 
-The implementation should not depend on a browser being open, a local web server being manually started, or the user launching the program through a terminal as the normal workflow.
-
-The target product should have:
-- installable desktop packaging;
-- application launcher integration;
-- its own process lifecycle;
-- local persistent storage;
-- desktop-native file interaction;
-- background workers for scanning and analysis;
-- proper application settings and cache locations;
-- offline operation for core features;
-- recoverable handling of crashes, unavailable files, and interrupted background work.
-
-## Proposed application stack
-
-### Python
-Python is currently favored because Koffer's difficult problems are strongly represented in the Python ecosystem: audio analysis, metadata processing, DSP, machine-learning inference, and filesystem tooling.
-
-### PySide6 / Qt
-PySide6 is the current desktop UI candidate.
-
-Reasons:
-- native desktop application model;
-- mature Linux support;
-- strong table/list/tree widgets;
-- native windowing and desktop interaction;
-- audio-library workflows fit conventional desktop interaction;
-- avoids depending on a browser runtime.
-
-This should still be validated with a small prototype before implementation is considered committed.
-
-### SQLite
-SQLite is the current candidate for local library state.
-
-Likely data includes Sources, Samples, file identity/state, confirmed metadata, suggestions, Collections, preparation recipes, analysis state, and embeddings or references to embedding storage.
-
-## Desktop integration questions
-
-Planning must eventually resolve:
-- XDG config/data/cache locations;
-- desktop launcher and icon packaging;
-- file/directory picker behavior;
+Qt owns:
+- windows;
+- widgets;
+- focus;
+- native file/directory dialogs;
 - drag-and-drop;
-- MIME/file associations, if useful;
-- notifications;
-- crash/error logging;
-- autostart only if a future background-service use case justifies it;
-- Wayland and X11 behavior;
-- HiDPI/scaling;
-- PipeWire/PulseAudio/ALSA playback compatibility.
+- clipboard;
+- menus;
+- HiDPI behavior;
+- platform integration.
 
-## Audio I/O and DSP
-The exact library set is not yet selected.
+The UI is not an Electron shell and does not depend on a local web server.
 
-Capabilities to evaluate:
-- robust decode support;
-- waveform generation;
-- duration and channel inspection;
-- BPM estimation;
-- key estimation;
-- pitch shifting;
-- time stretching;
-- resampling;
-- normalization;
-- render/export;
-- embedded metadata read/write;
-- embedded artwork read/write.
+## Persistence
 
-FFmpeg may provide broad decode/encode compatibility, while Python audio libraries can provide analysis and transformations.
+SQLite stores durable library state.
 
-## Local inference
-The inference layer should be modular.
+The database contains:
+- Sources;
+- Samples and file identity;
+- factual technical metadata;
+- embedded descriptive metadata snapshots;
+- confirmed classifications;
+- Suggestions and review state;
+- Collections and membership;
+- Saved Searches;
+- preparation recipes;
+- Job history;
+- analysis versions/provenance;
+- model/version metadata;
+- user preferences that belong with library state.
 
-Initial candidate architecture:
-1. filename/path heuristics;
+SQLite uses WAL mode where appropriate. Each worker thread/process owns its own database connection or accesses persistence through an explicitly thread-safe data service. A connection created on the UI thread is never casually reused in a worker.
+
+## XDG filesystem layout
+
+Koffer follows XDG conventions.
+
+Conceptual locations:
+- config: `$XDG_CONFIG_HOME/koffer/`;
+- durable app data: `$XDG_DATA_HOME/koffer/`;
+- cache: `$XDG_CACHE_HOME/koffer/`;
+- user-selected managed audio library: independent, configurable location;
+- model cache: user-visible/configurable under app data or cache depending model persistence policy.
+
+Exact resolved paths are displayed in About & Diagnostics.
+
+## Audio decoding and rendering
+
+Koffer uses a capability layer rather than scattering codec-specific logic through the UI.
+
+The product ships with or reliably resolves the tools needed for supported decoding/encoding. FFmpeg/ffprobe are the preferred broad compatibility layer unless a later documented decision replaces them.
+
+Rendering is always treated as a Job and produces a new file by default.
+
+## Embedded metadata
+
+Metadata read/write is isolated behind a format-aware service. Mutagen or an equivalent mature library is the preferred Python layer for supported container/tag formats.
+
+A metadata write:
+1. validates field support;
+2. writes to the chosen target;
+3. flushes/closes;
+4. rereads the target;
+5. reports verified result or explicit failure.
+
+Per-field exceptions are never silently swallowed.
+
+## Playback
+
+Playback is abstracted from browser state. The playback service accepts Sample identity and path, reports position/state, and survives normal screen changes.
+
+The implementation must work with common modern Linux desktop audio stacks, prioritizing PipeWire/PulseAudio compatibility and documenting any ALSA fallback behavior.
+
+## Analysis pipeline
+
+Analysis is modular:
+
+1. path/filename context;
 2. embedded metadata;
-3. deterministic audio features;
-4. local semantic model;
-5. evidence fusion;
-6. suggestion confidence;
-7. user review.
+3. factual technical extraction;
+4. deterministic DSP;
+5. local semantic inference;
+6. embeddings/similarity;
+7. evidence fusion;
+8. Suggestion generation;
+9. user review.
 
-PANNs is an early candidate for semantic audio inference and embeddings, but model licensing, packaging size, CPU performance, and output quality must be evaluated before selection.
+Every derived result carries an analysis version/provenance so stale outputs can be invalidated when algorithms, models, or source content change.
 
-## Background work
-Scanning and inference must not freeze the UI.
+## Local models
 
-Likely background tasks include filesystem scan, waveform generation, metadata extraction, BPM/key analysis, ML inference, and embedding indexing.
+Local semantic inference is optional and modular.
 
-Background work should expose progress and failure state to the desktop UI and should be designed so interrupted work can be resumed or safely rebuilt.
+Model requirements:
+- permissive distribution or clearly compatible license;
+- CPU-capable baseline;
+- offline operation;
+- versioned weights;
+- observable disk usage;
+- removable/re-downloadable cache;
+- inference cancellation between items;
+- no silent upload.
 
-## Non-destructive preparation
-Edits should be stored as parameters rather than immediately rewriting audio.
+The model layer may evolve without forcing UI or database concepts to change.
 
-Rendering creates a new output file.
+## Worker architecture
 
-## Packaging questions to resolve
-Before development:
-- target Linux distributions;
-- AppImage vs Flatpak vs native packages;
-- whether multiple package formats are worth supporting;
-- bundled vs system FFmpeg;
-- model download vs bundled model;
-- GPU acceleration policy;
-- cache/storage defaults;
-- sandbox/file-permission implications;
-- application update strategy.
+Expensive work never executes directly in an event handler.
 
-## Deliberately deferred
-No codebase, database schema, class hierarchy, API design, or package layout is defined yet.
+Worker domains include:
+- scanning;
+- metadata extraction;
+- waveform generation;
+- BPM/key analysis;
+- model inference;
+- embeddings;
+- similarity indexing;
+- file copy/move;
+- metadata writes;
+- rendering;
+- backup;
+- rebuild/maintenance.
 
-The next planning work should continue to refine the user manual, workflows, mockups, desktop behavior, and product boundaries before implementation begins.
+Jobs communicate progress through a bounded event interface. UI updates are marshalled back to the Qt main thread.
+
+## Cancellation and idempotency
+
+Jobs are designed around safe checkpoints.
+
+Pure analysis work can usually be cancelled without side effects.
+
+Filesystem Jobs track each item and record success/failure/skipped state so interrupted batches can be explained and, where safe, resumed.
+
+## Search
+
+Search is database-backed and index-aware. Large tables are paged/virtualized.
+
+Search and filters never require loading the entire Sample corpus into widget memory.
+
+## Packaging
+
+The primary first distribution is a self-contained AppImage.
+
+The AppImage includes:
+- Python runtime;
+- application code;
+- Qt libraries/plugins required by Koffer;
+- Python dependencies;
+- required codec/runtime helpers such as FFmpeg when licensing permits;
+- application icon and desktop metadata.
+
+Large local ML weights are stored separately and versioned so the application package can update without duplicating model storage.
+
+Later packaging can add Flatpak and conventional distro packages without changing the product architecture.
+
+## Updates
+
+Application updates and model updates are conceptually separate.
+
+Koffer remains usable when update services are unreachable. No update check blocks launch.
+
+## Logging and diagnostics
+
+Logs use structured levels and avoid recording raw audio.
+
+Diagnostics can include:
+- version/build;
+- platform;
+- paths;
+- Source status;
+- Job errors;
+- model versions;
+- audio backend;
+- recent application logs.
+
+The diagnostics export excludes user audio and should minimize personally identifying path content where practical.
+
+## Testing layers
+
+Required test layers:
+- pure domain/unit tests;
+- persistence/migration tests;
+- filesystem integration tests using temporary directories;
+- metadata read/write fixtures;
+- analysis contract tests;
+- Qt widget/UI tests;
+- worker/threading tests;
+- render verification;
+- package launch smoke test;
+- large-library performance fixtures.
+
+## Architectural boundary
+
+UI code expresses interaction state; it does not own filesystem mutation, database SQL, codec commands, or model inference directly.
+
+The separation exists to make safety, cancellation, testability, and Dreadnought Order boundaries explicit.
