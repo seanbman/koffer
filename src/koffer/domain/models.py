@@ -1,0 +1,107 @@
+"""Core domain value objects for Phase 1 persistence wiring."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from koffer.domain.enums import (
+    JobState,
+    JobType,
+    SampleAvailability,
+    SourceStatus,
+    SuggestionStatus,
+)
+from koffer.domain.ids import EntityId
+
+
+@dataclass(frozen=True, slots=True)
+class Source:
+    """Authorized scan root."""
+
+    id: EntityId
+    display_name: str
+    root_path: str
+    enabled: bool
+    recursive: bool
+    status: SourceStatus
+    created_at: str
+    updated_at: str
+    storage_fingerprint: str | None = None
+    last_scan_started_at: str | None = None
+    last_scan_completed_at: str | None = None
+    last_seen_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Sample:
+    """Indexed audio file identity."""
+
+    id: EntityId
+    relative_path: str
+    normalized_path_cache: str
+    filename: str
+    extension: str
+    size_bytes: int
+    mtime_ns: int
+    availability: SampleAvailability
+    favorite: bool
+    first_seen_at: str
+    last_seen_at: str
+    created_at: str
+    updated_at: str
+    source_id: EntityId | None = None
+    device_id: int | None = None
+    inode: int | None = None
+    quick_hash: str | None = None
+    content_hash: str | None = None
+    last_previewed_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Collection:
+    """User-curated Sample grouping (membership never deletes files)."""
+
+    id: EntityId
+    name: str
+    sort_mode: str
+    created_at: str
+    updated_at: str
+    description: str | None = None
+    color: str | None = None
+    artwork_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Suggestion:
+    """Machine-proposed classification awaiting user review."""
+
+    id: EntityId
+    sample_id: EntityId
+    dimension: str
+    proposed_value: str
+    confidence: float
+    status: SuggestionStatus
+    evidence_json: str
+    provider: str
+    provider_version: str
+    analysis_run_id: EntityId
+    created_at: str
+    reviewed_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Job:
+    """Durable background work unit."""
+
+    id: EntityId
+    type: JobType
+    state: JobState
+    scope_json: str
+    progress_current: int
+    created_at: str
+    progress_total: int | None = None
+    stage: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    error_code: str | None = None
+    summary_json: str | None = None
