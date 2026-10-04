@@ -17,7 +17,7 @@ The architecture is deliberately boring. It optimizes for safety, testability, r
 - Audio decode/render/inspection: FFmpeg / ffprobe capability layer.
 - Playback: Qt Multimedia, isolated behind a PlaybackService.
 - Numerical analysis: NumPy + librosa where deterministic DSP is needed.
-- Local semantic backend: PANNs-compatible local provider, with weights outside Git.
+- Local semantic backend: Koffer-owned PANNs Cnn14 (32 kHz) provider adapter based on the audited official MIT implementation; model weights remain outside Git.
 - Similarity index: hnswlib over versioned local embeddings.
 - Tests: pytest + pytest-qt.
 - Static quality: Ruff + mypy.

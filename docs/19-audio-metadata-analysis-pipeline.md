@@ -161,7 +161,7 @@ Do not assign BPM/key as factual metadata unless it was embedded or user-confirm
 
 ## Semantic analysis
 
-Default semantic provider contract is PANNs-style local audio tagging with embeddings.
+Default semantic provider is PANNs Cnn14 at 32 kHz, exposed through Koffer's own SemanticProvider adapter for local audio tagging plus 2048-dimensional embeddings.
 
 The implementation must support:
 - provider disabled/unavailable;
@@ -179,7 +179,7 @@ The application remains fully usable without the semantic model. In that state:
 
 ## PANNs policy
 
-Use official PANNs project/model sources. Code is MIT-licensed; pretrained model redistribution must be separately recorded before any weight is bundled. Until redistribution approval is documented, model weights are downloaded at runtime from the official artifact source and verified against a manifest checksum.
+Use the official `qiuqiangkong/audioset_tagging_cnn` implementation as the audited reference. V1 targets the official `Cnn14_mAP=0.431.pth` 32 kHz checkpoint from the upstream Zenodo artifact set. Implement the minimal inference/provider code inside Koffer with required MIT attribution rather than relying on the aging `panns-inference` wrapper as a runtime dependency. Pretrained model redistribution must be separately recorded before any weight is bundled. Until redistribution approval is documented, the checkpoint is downloaded at runtime from the official artifact source and verified against a checked-in manifest SHA256.
 
 Do not commit model weights to Git.
 

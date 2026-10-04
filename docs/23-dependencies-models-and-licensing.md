@@ -18,7 +18,7 @@ The intended stack is:
 | Numeric DSP | numpy | arrays/features/waveforms |
 | Music analysis | librosa | BPM/key baseline and DSP |
 | Audio file helper | soundfile where useful | fixture/read helpers; FFmpeg remains broad codec layer |
-| Semantic inference | torch + panns-inference/provider adapter | local PANNs CPU inference |
+| Semantic inference | torch + Koffer PANNs provider adapter | local Cnn14 CPU inference; no runtime dependency on the aging panns-inference wrapper |
 | ANN similarity | hnswlib | cosine embedding index |
 | Packaging | PyInstaller | self-contained Python/Qt bundle |
 | Test | pytest, pytest-qt, coverage | quality |
@@ -57,7 +57,7 @@ Do not hand-edit lock resolution.
 
 ## PANNs
 
-The official PANNs/audio tagging project code is MIT licensed.
+The official PANNs/audio tagging project code is MIT licensed. Koffer uses an attributed minimal provider implementation derived from/audited against that official code rather than taking a hard runtime dependency on the legacy `panns-inference` wrapper.
 
 Policy for pretrained weights:
 - do not assume code license automatically settles weight redistribution;
@@ -73,9 +73,11 @@ Model manifest fields:
 {
   "provider": "panns",
   "model": "Cnn14",
+  "sample_rate_hz": 32000,
+  "artifact": "Cnn14_mAP=0.431.pth",
   "version": "upstream-artifact-version",
-  "source_url": "official artifact URL",
-  "sha256": "...",
+  "source_url": "https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth?download=1",
+  "sha256": "<record after verified download>",
   "size_bytes": 0,
   "license_note": "see THIRD_PARTY_NOTICES"
 }

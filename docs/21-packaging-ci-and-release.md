@@ -4,6 +4,8 @@
 
 Primary release artifact: x86_64 Linux AppImage.
 
+V1 support target is glibc-based x86_64 desktop Linux with a build baseline no newer than Ubuntu 22.04 LTS (glibc 2.35). Release smoke coverage includes Ubuntu 22.04/24.04-class environments and at least one non-Ubuntu glibc desktop distribution. Wayland and X11 are both in scope. ARM64, musl-only distributions, and non-Linux platforms are outside V1 support.
+
 The application must not require:
 - source checkout;
 - Python installation;
