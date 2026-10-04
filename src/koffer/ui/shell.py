@@ -1,9 +1,10 @@
-"""Dark application shell with navigation and S00/S05/S06 wiring."""
+"""Dark application shell with navigation, S00/S01/S05/S06, transport, shortcuts."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -24,6 +25,7 @@ from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.welcome import WelcomeScreen
 from koffer.ui.tokens import CANVAS, CLAY, SHELL_STYLESHEET
+from koffer.ui.widgets.transport import TransportBar
 
 WINDOW_TITLE = "Koffer"
 CANVAS_COLOR = CANVAS
@@ -64,12 +66,23 @@ class MainWindow(QMainWindow):
         self._nav = self._build_nav()
         layout.addWidget(self._nav)
 
+        center = QWidget()
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(0)
+
         self._stack = QStackedWidget()
         self._stack.setObjectName("kofferStack")
-        layout.addWidget(self._stack, stretch=1)
+        center_layout.addWidget(self._stack, stretch=1)
+
+        self._transport = TransportBar(context.playback_service)
+        self._transport.bind_selection_loader(self._load_playback_from_library)
+        center_layout.addWidget(self._transport)
+
+        layout.addWidget(center, stretch=1)
 
         self._welcome = WelcomeScreen()
-        self._library = LibraryBrowserScreen(context.search_service)
+        self._library = LibraryBrowserScreen(context)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
 
@@ -83,6 +96,11 @@ class MainWindow(QMainWindow):
         self._sources.add_source_requested.connect(self._pick_and_add_source)
         self._sources.source_selected.connect(self._open_source_detail)
         self._source_detail.back_requested.connect(lambda: self.navigate(SCREEN_SOURCES))
+        self._library.selection_changed.connect(self._on_library_selection)
+
+        self._focus_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self._focus_search_shortcut.setObjectName("focusSearchShortcut")
+        self._focus_search_shortcut.activated.connect(self._focus_library_search)
 
         self.setCentralWidget(shell)
         self._sync_initial_route()
@@ -90,6 +108,14 @@ class MainWindow(QMainWindow):
     @property
     def context(self) -> AppContext:
         return self._context
+
+    @property
+    def transport(self) -> TransportBar:
+        return self._transport
+
+    @property
+    def library(self) -> LibraryBrowserScreen:
+        return self._library
 
     def current_screen_id(self) -> str:
         return self._current_screen
@@ -178,12 +204,28 @@ class MainWindow(QMainWindow):
         self._source_detail.show_source(EntityId(source_id))
         self.navigate(SCREEN_SOURCE_DETAIL)
 
+    def _focus_library_search(self) -> None:
+        if self._current_screen != SCREEN_LIBRARY:
+            self.navigate(SCREEN_LIBRARY)
+        self._library.focus_search()
+
+    def focus_library_search(self) -> None:
+        """Public Ctrl+F target used by shortcut and tests."""
+        self._focus_library_search()
+
+    def _on_library_selection(self, sample_id: object, name: object) -> None:
+        sid = None if sample_id is None else str(sample_id)
+        self._transport.set_selection(sid, str(name) if name else "")
+
+    def _load_playback_from_library(self) -> None:
+        self._library.load_selection_into_playback()
+
 
 def create_main_window(
     context: AppContext | None = None,
     *,
     directory_picker: DirectoryPicker | None = None,
 ) -> MainWindow:
-    """Create the Phase 2 shell; builds a default AppContext when omitted."""
+    """Create the Phase 3 shell; builds a default AppContext when omitted."""
     ctx = context or AppContext.open_default()
     return MainWindow(ctx, directory_picker=directory_picker)

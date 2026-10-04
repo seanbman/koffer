@@ -125,6 +125,10 @@ class SampleTableModel(QAbstractTableModel):
         item = self._row_at(row)
         return None if item is None else str(item.id)
 
+    def sample_row_at(self, row: int) -> SampleRow | None:
+        """Return the SampleRow for a table row index (paged fetch)."""
+        return self._row_at(row)
+
     def _row_at(self, row: int) -> SampleRow | None:
         if row < 0 or row >= self._total:
             return None

@@ -7,9 +7,12 @@ from pathlib import Path
 
 from koffer.audio.waveform import WaveformCache
 from koffer.config.paths import AppPaths, resolve_app_paths
+from koffer.domain.ids import EntityId
 from koffer.jobs.scheduler import JobScheduler
 from koffer.persistence.connection import ConnectionFactory
 from koffer.persistence.migrations import apply_migrations
+from koffer.repositories.samples import SampleRepository
+from koffer.repositories.sources import SourceRepository
 from koffer.services.playback import PlaybackService
 from koffer.services.search import SearchService
 from koffer.services.sources import SourceService
@@ -74,6 +77,17 @@ class AppContext:
             log_dir=root / "state" / "logs",
         )
         return cls.open(paths, io_workers=io_workers)
+
+    def resolve_sample_media_path(self, sample_id: EntityId) -> Path | None:
+        """Resolve indexed Sample -> absolute media path (read-only; never mutates files)."""
+        conn = self.connection_factory.get_connection()
+        sample = SampleRepository(conn).get(sample_id)
+        if sample is None or sample.source_id is None:
+            return None
+        source = SourceRepository(conn).get(sample.source_id)
+        if source is None:
+            return None
+        return Path(source.root_path) / sample.relative_path
 
     def close(self) -> None:
         if self._owns_scheduler:

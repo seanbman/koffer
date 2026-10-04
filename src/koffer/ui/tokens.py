@@ -114,4 +114,57 @@ QFrame#promiseCard {{
     border: 1px solid {BORDER};
     border-radius: 6px;
 }}
+QWidget#inspectorPanel {{
+    background-color: {SURFACE_1};
+    border-left: 1px solid {BORDER};
+}}
+QWidget#transportBar {{
+    background-color: #101316;
+    border-top: 1px solid {BORDER};
+}}
+QWidget#filterPanel {{
+    background-color: {SURFACE_1};
+    border: 1px solid {BORDER};
+    border-radius: 6px;
+}}
+QLabel#sectionLabel {{
+    color: {FAINT};
+    font-size: 10px;
+    font-weight: 700;
+}}
+QLabel#inspectorTitle {{
+    color: {TEXT};
+    font-size: 15px;
+    font-weight: 700;
+}}
+QLabel#waveformSummary {{
+    color: {MUTED};
+    font-size: 11px;
+}}
+QLineEdit#librarySearchField {{
+    background-color: {SURFACE_1};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    border-radius: 5px;
+    padding: 6px 10px;
+    min-height: 28px;
+}}
+QTableView#sampleTable {{
+    background-color: {SURFACE_1};
+    alternate-background-color: #14181C;
+    color: {TEXT};
+    gridline-color: #252B30;
+    border: 1px solid {BORDER};
+    selection-background-color: {SURFACE_3};
+    selection-color: {TEXT};
+}}
+QHeaderView::section {{
+    background-color: {SURFACE_1};
+    color: {FAINT};
+    border: none;
+    border-bottom: 1px solid {BORDER};
+    padding: 6px 8px;
+    font-size: 10px;
+    font-weight: 700;
+}}
 """

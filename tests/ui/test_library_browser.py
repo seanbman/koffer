@@ -1,4 +1,4 @@
-"""Offscreen coverage for S01 paged library browser."""
+"""Offscreen coverage for S01/S02 foundations + Inspector/Playback bindings."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLineEdit, QTableView
 
 from koffer.app_context import AppContext
+from koffer.audio.wav_fixtures import write_sine_wav
 from koffer.domain import (
     Sample,
     SampleAvailability,
@@ -16,46 +17,58 @@ from koffer.domain import (
     new_entity_id,
     utc_now_iso,
 )
+from koffer.domain.query import SampleFilters
 from koffer.persistence import SearchIndexService
 from koffer.repositories import SampleRepository, SourceRepository
+from koffer.services.playback import PlaybackState
 from koffer.ui.screens.library import LibraryBrowserScreen
 from koffer.ui.shell import MainWindow
+from koffer.ui.widgets.inspector import InspectorPanel
+from koffer.ui.widgets.transport import TransportBar
+
+
+def _seed_library(context: AppContext, tmp_path: Path, *, name: str = "deep-kick.wav") -> str:
+    pack = tmp_path / "pack"
+    pack.mkdir(parents=True, exist_ok=True)
+    wav = write_sine_wav(pack / name, duration_s=0.2)
+    conn = context.connection_factory.get_connection()
+    now = utc_now_iso()
+    source = Source(
+        id=new_entity_id(),
+        display_name="UI Pack",
+        root_path=str(pack),
+        enabled=True,
+        recursive=True,
+        status=SourceStatus.ONLINE,
+        created_at=now,
+        updated_at=now,
+    )
+    SourceRepository(conn).create(source)
+    sample = Sample(
+        id=new_entity_id(),
+        relative_path=name,
+        normalized_path_cache=name,
+        filename=name,
+        extension="wav",
+        size_bytes=wav.stat().st_size,
+        mtime_ns=1,
+        availability=SampleAvailability.ONLINE,
+        favorite=False,
+        first_seen_at=now,
+        last_seen_at=now,
+        created_at=now,
+        updated_at=now,
+        source_id=source.id,
+    )
+    SampleRepository(conn).create(sample)
+    SearchIndexService(conn).refresh_sample(sample.id)
+    return str(sample.id)
 
 
 def test_s01_library_shows_paged_table_and_search(qtbot: object, tmp_path: Path) -> None:
     context = AppContext.open_temp(tmp_path / "library-ui")
     try:
-        conn = context.connection_factory.get_connection()
-        now = utc_now_iso()
-        source = Source(
-            id=new_entity_id(),
-            display_name="UI Pack",
-            root_path=str(tmp_path / "pack"),
-            enabled=True,
-            recursive=True,
-            status=SourceStatus.ONLINE,
-            created_at=now,
-            updated_at=now,
-        )
-        SourceRepository(conn).create(source)
-        sample = Sample(
-            id=new_entity_id(),
-            relative_path="kick.wav",
-            normalized_path_cache="kick.wav",
-            filename="deep-kick.wav",
-            extension="wav",
-            size_bytes=1024,
-            mtime_ns=1,
-            availability=SampleAvailability.ONLINE,
-            favorite=False,
-            first_seen_at=now,
-            last_seen_at=now,
-            created_at=now,
-            updated_at=now,
-            source_id=source.id,
-        )
-        SampleRepository(conn).create(sample)
-        SearchIndexService(conn).refresh_sample(sample.id)
+        _seed_library(context, tmp_path)
 
         window = MainWindow(context, directory_picker=lambda _p: None)
         qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -75,5 +88,88 @@ def test_s01_library_shows_paged_table_and_search(qtbot: object, tmp_path: Path)
         qtbot.keyClick(search, Qt.Key.Key_Return)  # type: ignore[attr-defined]
         assert table.model().rowCount() == 1  # type: ignore[union-attr]
         assert table.model().data(table.model().index(0, 0)) == "deep-kick.wav"  # type: ignore[union-attr]
+    finally:
+        context.close()
+
+
+def test_s01_selection_updates_inspector_keeps_table_selection(
+    qtbot: object, tmp_path: Path
+) -> None:
+    context = AppContext.open_temp(tmp_path / "inspector-ui")
+    try:
+        sample_id = _seed_library(context, tmp_path, name="inspect-me.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+
+        library = window.library
+        table = library.table
+        table.selectRow(0)
+        qtbot.waitUntil(lambda: library.inspector.sample_id == sample_id, timeout=2000)  # type: ignore[attr-defined]
+
+        inspector = window.findChild(InspectorPanel, "inspectorPanel")
+        assert inspector is not None
+        assert inspector.sample_id == sample_id
+        assert inspector.title_text == "inspect-me.wav"
+        assert "Waveform:" in inspector.waveform_summary_text
+        assert "unavailable" not in inspector.waveform_summary_text
+
+        selected = table.selectionModel().selectedRows()
+        assert len(selected) == 1
+        assert library.model.sample_id_at(selected[0].row()) == sample_id
+        # Auto-preview OFF: selection alone must not start playback.
+        assert context.playback_service.state == PlaybackState.STOPPED
+        assert context.playback_service.sample_id is None
+    finally:
+        context.close()
+
+
+def test_playback_invoked_from_browser_selection_path(qtbot: object, tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "transport-ui")
+    try:
+        sample_id = _seed_library(context, tmp_path, name="play-me.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+
+        window.library.table.selectRow(0)
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: window.transport.selected_sample_id == sample_id,
+            timeout=2000,
+        )
+
+        transport = window.findChild(TransportBar, "transportBar")
+        assert transport is not None
+        transport.play_selection()
+
+        assert context.playback_service.sample_id is not None
+        assert str(context.playback_service.sample_id) == sample_id
+        assert context.playback_service.path is not None
+        assert context.playback_service.path.name == "play-me.wav"
+    finally:
+        context.close()
+
+
+def test_ctrl_f_focuses_search_and_filter_panel_applies(qtbot: object, tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "filters-ui")
+    try:
+        _seed_library(context, tmp_path, name="kick.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.show()
+        qtbot.waitExposed(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+
+        window.focus_library_search()
+        search = window.findChild(QLineEdit, "librarySearchField")
+        assert search is not None
+        qtbot.waitUntil(lambda: search.hasFocus(), timeout=2000)  # type: ignore[attr-defined]
+
+        library = window.library
+        library.show_filters(True)
+        assert library.filter_panel.isVisible()
+        library.filter_panel.apply_filters(SampleFilters(extensions=("wav",)))
+        assert library.model.rowCount() == 1
+        assert "format=wav" in library.filter_panel.active_summary
     finally:
         context.close()
