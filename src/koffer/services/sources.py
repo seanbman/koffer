@@ -2,21 +2,62 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import builtins
+import json
+import sqlite3
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from koffer.domain.enums import ExclusionPatternType, JobType, ScanMode, SourceStatus
+from koffer.domain.enums import (
+    ExclusionPatternType,
+    JobState,
+    JobType,
+    ScanMode,
+    SourceStatus,
+)
 from koffer.domain.errors import NotFoundError, ValidationError
 from koffer.domain.ids import EntityId, new_entity_id
-from koffer.domain.models import ExclusionPreview, ExclusionRule, Source
+from koffer.domain.models import ExclusionPreview, ExclusionRule, Job, Source
 from koffer.domain.timestamps import utc_now_iso
 from koffer.filesystem.scanner import preview_exclusions
 from koffer.jobs.scheduler import JobScheduler, JobSpec
 from koffer.persistence.connection import ConnectionFactory
 from koffer.persistence.search_index import SearchIndexService
 from koffer.repositories.exclusions import SourceExclusionRepository
+from koffer.repositories.jobs import JobRepository
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
+
+_ACTIVE_JOB_STATES = frozenset(
+    {
+        JobState.QUEUED,
+        JobState.RUNNING,
+        JobState.PAUSE_REQUESTED,
+        JobState.PAUSED,
+        JobState.CANCEL_REQUESTED,
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceListItem:
+    """Source row for S05: repository status plus lightweight counts."""
+
+    source: Source
+    sample_count: int
+    exclusion_count: int
+    current_job: Job | None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceDetailView:
+    """S06 foundation: status, exclusions, and recent jobs summary."""
+
+    source: Source
+    sample_count: int
+    exclusions: tuple[ExclusionRule, ...]
+    recent_jobs: tuple[Job, ...]
+    current_job: Job | None
 
 
 def default_exclusion_rules(source_id: EntityId) -> list[ExclusionRule]:
@@ -194,3 +235,63 @@ class SourceService:
     def list(self) -> list[Source]:
         conn = self._factory.get_connection()
         return SourceRepository(conn).list_all()
+
+    def list_with_status(self) -> builtins.list[SourceListItem]:
+        """Return Sources with sample/exclusion counts and active Job (no UI SQL)."""
+        conn = self._factory.get_connection()
+        sources = SourceRepository(conn).list_all()
+        samples = SampleRepository(conn)
+        exclusions = SourceExclusionRepository(conn)
+        jobs_by_source = self._jobs_by_source(conn)
+        items: builtins.list[SourceListItem] = []
+        for source in sources:
+            source_jobs = jobs_by_source.get(str(source.id), [])
+            current = next(
+                (job for job in source_jobs if job.state in _ACTIVE_JOB_STATES),
+                None,
+            )
+            items.append(
+                SourceListItem(
+                    source=source,
+                    sample_count=len(samples.list_by_source(source.id)),
+                    exclusion_count=len(exclusions.list_for_source(source.id)),
+                    current_job=current,
+                )
+            )
+        return items
+
+    def get_detail(self, source_id: EntityId) -> SourceDetailView:
+        """Return S06 foundation payload for one Source."""
+        conn = self._factory.get_connection()
+        source = SourceRepository(conn).get(source_id)
+        if source is None:
+            raise NotFoundError(f"Source not found: {source_id}")
+        sample_count = len(SampleRepository(conn).list_by_source(source_id))
+        rules = tuple(SourceExclusionRepository(conn).list_for_source(source_id))
+        source_jobs = self._jobs_by_source(conn).get(str(source_id), [])
+        current = next(
+            (job for job in source_jobs if job.state in _ACTIVE_JOB_STATES),
+            None,
+        )
+        return SourceDetailView(
+            source=source,
+            sample_count=sample_count,
+            exclusions=rules,
+            recent_jobs=tuple(source_jobs[:8]),
+            current_job=current,
+        )
+
+    def _jobs_by_source(self, conn: sqlite3.Connection) -> dict[str, builtins.list[Job]]:
+        grouped: dict[str, builtins.list[Job]] = {}
+        for job in JobRepository(conn).list_recent(limit=200):
+            try:
+                scope = json.loads(job.scope_json)
+            except json.JSONDecodeError:
+                continue
+            source_id = scope.get("source_id")
+            if not isinstance(source_id, str) or not source_id:
+                continue
+            grouped.setdefault(source_id, []).append(job)
+        for jobs in grouped.values():
+            jobs.sort(key=lambda item: item.created_at, reverse=True)
+        return grouped

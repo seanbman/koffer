@@ -75,6 +75,18 @@ class JobRepository:
         ).fetchall()
         return [_from_row(row) for row in rows]
 
+    def list_recent(self, *, limit: int = 100) -> list[Job]:
+        """Newest-first Job rows for UI summaries (bounded)."""
+        rows = self._conn.execute(
+            """
+            SELECT * FROM jobs
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (max(1, int(limit)),),
+        ).fetchall()
+        return [_from_row(row) for row in rows]
+
     def update(self, job: Job) -> bool:
         return (
             row_count(
