@@ -35,6 +35,7 @@ uv run koffer --safe-mode
 ## Quality
 
 ~~~bash
+make repo-guard
 make lint
 make typecheck
 make test
@@ -42,6 +43,9 @@ make qa
 ~~~
 
 Required Make targets:
+
+### make repo-guard
+Fails if any `.grapher` control-plane path is tracked by Git. Run this before promotion/push. Ignoring `.grapher/` is necessary but not sufficient because a previously tracked or force-added file can bypass normal ignore behavior.
 
 ### make lint
 ~~~bash
@@ -60,7 +64,7 @@ uv run pytest -q
 ~~~
 
 ### make qa
-Runs lint + typecheck + full tests.
+Runs repo-guard + lint + typecheck + full tests.
 
 ## Test subsets
 
