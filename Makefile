@@ -1,4 +1,13 @@
-.PHONY: lint typecheck test qa clean package package-stage licenses
+.PHONY: repo-guard lint typecheck test qa clean package package-stage licenses
+
+repo-guard:
+	@tracked="$(git ls-files | grep -E '^\\.grapher(/|$)' || true)"; \
+	if [ -n "$tracked" ]; then \
+		echo "ERROR: tracked .grapher state is forbidden."; \
+		echo "Grapher is local Dreadnought control-plane state, not Koffer source."; \
+		echo "$tracked"; \
+		exit 1; \
+	fi
 
 lint:
 	uv run --no-sync python -m ruff check .
@@ -10,7 +19,7 @@ typecheck:
 test:
 	QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -q
 
-qa: lint typecheck test
+qa: repo-guard lint typecheck test
 
 licenses:
 	uv run --no-sync python scripts/verify_licenses.py --check-only
