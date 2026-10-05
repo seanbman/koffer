@@ -92,6 +92,19 @@ uv run python scripts/generate_test_audio.py
 
 Generated fixtures must be deterministic.
 
+### 100k performance library (no audio corpus)
+
+~~~bash
+uv run python scripts/generate_100k_fixture.py
+# or
+uv run python -m koffer.dev generate-100k-fixture
+uv run python -m koffer.dev benchmark-100k
+uv run pytest tests/performance
+~~~
+
+Creates `library.sqlite3` + `manifest.json` representing 100,000 Samples without
+storing 100,000 audio files. Benchmark report: `tests/performance/reports/`.
+
 ## Database
 
 Developer/test-only commands exposed through module tooling:

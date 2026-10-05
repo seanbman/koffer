@@ -29,3 +29,9 @@ THIRD_PARTY_NOTICES.txt
 *.pt
 *.onnx
 models/cache/
+
+# Generated 100k performance fixture DB (docs/20); keep reports/manifests tracked
+tests/performance/fixtures/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

@@ -1,0 +1,42 @@
+{
+  "fixture_dir": "/home/sean/Documents/experiments/csw-041026/.dreadnought/scratch/koffer/work/tests/performance/fixtures/100k",
+  "hardware": {
+    "machine": "x86_64",
+    "platform": "Linux-6.17.0-40-generic-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.3"
+  },
+  "hardware_limited_variance": true,
+  "overall_pass": false,
+  "sample_count": 100000,
+  "schema_version": 1,
+  "summary": "HARDWARE-LIMITED VARIANCE: absolute docs/20 targets not met for common_query_p95_ms; measured values recorded for local regression reference.",
+  "targets_docs_20": {
+    "app_shell_ms": 2000.0,
+    "common_query_p95_ms": 250.0,
+    "first_200_rows_ms": 400.0
+  },
+  "timings": [
+    {
+      "measured_ms": 209.642,
+      "name": "app_shell_ms",
+      "notes": "AppContext.open on existing DB + create_main_window (offscreen)",
+      "passed": true,
+      "target_ms": 2000.0
+    },
+    {
+      "measured_ms": 270.127,
+      "name": "common_query_p95_ms",
+      "notes": "SearchService text='kick' page limit=200; p95 of 21 iters (median=260.761)",
+      "passed": false,
+      "target_ms": 250.0
+    },
+    {
+      "measured_ms": 269.33,
+      "name": "first_200_rows_ms",
+      "notes": "First PageRequest(limit=200) after common text/filter query",
+      "passed": true,
+      "target_ms": 400.0
+    }
+  ]
+}
