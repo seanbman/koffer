@@ -620,6 +620,17 @@ Before completing a change:
 
 Do not commit generated caches, local databases, model downloads, virtual environments, temporary renders, or personal library paths.
 
+### Grapher commit boundary
+
+"Grapher/evaluation recorded" means Dreadnought writes evidence into Grapher's local control-plane state. It does **not** mean exporting, snapshotting, or committing the Grapher brain into Koffer.
+
+Rules:
+- `.grapher/` is local control-plane state and must remain untracked.
+- Never use `git add -f .grapher` or otherwise bypass the ignore rule.
+- Never commit Grapher's raw `config.json`, `history.jsonl`, `knowledge.json`, `vectors.json`, caches, or equivalent future brain/state files.
+- A product repository may contain only **minimal, purpose-built evidence artifacts** that are independently useful to Koffer (for example, a benchmark report required by an acceptance gate). Do not use a whole Grapher export as evidence.
+- Before promotion or push, run `make repo-guard`. A tracked `.grapher/**` path is a hard repository-hygiene failure.
+
 ## 27. Documentation discipline
 
 When implementing a documented feature:
@@ -680,7 +691,8 @@ Do not:
 - add dependencies without checking licenses;
 - commit private sample libraries or copyrighted sample packs;
 - change user-visible behavior without updating the manual;
-- invent new product requirements merely to complete a coding task.
+- invent new product requirements merely to complete a coding task;
+- commit, force-add, archive, or upload the `.grapher/` control-plane state into the Koffer repository.
 
 ## 31. When a low-level detail is not explicitly specified
 

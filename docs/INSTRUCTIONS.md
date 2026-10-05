@@ -115,6 +115,19 @@ Dreadnought must ingest, in this order:
 - Promotion to `dev` occurs only after Dreadnought verification.
 - Release promotion from `dev` to `main` happens only after the release gate in `21-packaging-ci-and-release.md`.
 
+## Grapher persistence boundary
+
+Grapher is part of the Dreadnought control plane, but its working brain is **not Koffer source**.
+
+- `.grapher/**` stays local and untracked.
+- "record Grapher/evaluation" means use Grapher's own local mutation/recording path after verification.
+- Do not copy or export Grapher's whole `config`, history, knowledge, vector, cache, or derived state into a Koffer commit.
+- Do not force-add ignored Grapher files.
+- If an Order requires durable repository evidence, commit only the smallest repo-native artifact that proves that specific acceptance criterion and is useful without Grapher. A focused benchmark report or release manifest is acceptable; a Grapher brain dump is not.
+- Dreadnought must run `make repo-guard` before canonical promotion. Any tracked `.grapher/**` path fails promotion.
+
+This boundary is deliberate: Git records product source and intentional audit artifacts; Grapher records evolving agent/control-plane knowledge.
+
 ## Order sizing
 
 An Order is bounded around one cohesive outcome that can be independently verified.
@@ -154,7 +167,8 @@ An Order returns:
 - acceptance evidence;
 - known limitations that remain inside later roadmap scope;
 - token usage;
-- no hidden canonical mutation.
+- no hidden canonical mutation;
+- `make repo-guard` passes and no Grapher control-plane state is tracked.
 
 Dreadnought independently reruns the relevant verification before promotion.
 
