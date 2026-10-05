@@ -35,3 +35,6 @@ tests/performance/fixtures/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Dreadnought/Grapher project brain stays local (not product source)
+.grapher/
