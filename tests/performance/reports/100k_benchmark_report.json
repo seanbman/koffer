@@ -1,5 +1,5 @@
 {
-  "fixture_dir": "/home/sean/Documents/experiments/csw-041026/.dreadnought/scratch/koffer/work/tests/performance/fixtures/100k",
+  "fixture_dir": "/home/sean/Documents/experiments/csw-041026/koffer/tests/performance/fixtures/100k",
   "hardware": {
     "machine": "x86_64",
     "platform": "Linux-6.17.0-40-generic-x86_64-with-glibc2.39",
@@ -18,21 +18,21 @@
   },
   "timings": [
     {
-      "measured_ms": 209.642,
+      "measured_ms": 144.126,
       "name": "app_shell_ms",
       "notes": "AppContext.open on existing DB + create_main_window (offscreen)",
       "passed": true,
       "target_ms": 2000.0
     },
     {
-      "measured_ms": 270.127,
+      "measured_ms": 269.642,
       "name": "common_query_p95_ms",
-      "notes": "SearchService text='kick' page limit=200; p95 of 21 iters (median=260.761)",
+      "notes": "SearchService text='kick' page limit=200; p95 of 21 iters (median=260.651)",
       "passed": false,
       "target_ms": 250.0
     },
     {
-      "measured_ms": 269.33,
+      "measured_ms": 267.769,
       "name": "first_200_rows_ms",
       "notes": "First PageRequest(limit=200) after common text/filter query",
       "passed": true,
