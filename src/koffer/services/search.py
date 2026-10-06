@@ -127,6 +127,14 @@ class SearchService:
         conn = self._factory.get_connection()
         return self._count_with_conn(conn, query)
 
+    def list_saved_searches(self) -> list[SavedSearch]:
+        """Return persisted dynamic library views in display-name order."""
+        return SavedSearchRepository(self._factory.get_connection()).list()
+
+    def get_saved_search(self, saved_id: EntityId) -> SavedSearch | None:
+        """Return one saved library view by id."""
+        return SavedSearchRepository(self._factory.get_connection()).get(saved_id)
+
     def save_search(self, name: str, query: SampleQuery) -> SavedSearch:
         """Persist a named dynamic SampleQuery view."""
         cleaned = name.strip()
@@ -238,6 +246,9 @@ def _build_where(query: SampleQuery) -> tuple[str, tuple[Any, ...]]:
     if filters.favorite is not None:
         clauses.append("s.favorite = ?")
         params.append(1 if filters.favorite else 0)
+
+    if filters.previewed_only:
+        clauses.append("s.last_previewed_at IS NOT NULL")
 
     if filters.channels:
         placeholders = ", ".join("?" for _ in filters.channels)
