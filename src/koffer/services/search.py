@@ -33,9 +33,13 @@ _CLASSIFICATION_FILTERS: tuple[tuple[str, str], ...] = (
 
 _SORT_SQL: dict[SortField, str] = {
     SortField.NAME: "s.filename",
-    SortField.DURATION: "tm.duration_ms",
+    SortField.SAMPLE_TYPE: "sample_type",
+    SortField.INSTRUMENT_SOURCE: "instrument_source",
     SortField.BPM: "bpm_value",
     SortField.KEY: "key_value",
+    SortField.DURATION: "tm.duration_ms",
+    SortField.EXTENSION: "s.extension",
+    SortField.AVAILABILITY: "s.availability",
     SortField.DATE_DISCOVERED: "s.first_seen_at",
     SortField.LAST_USED: "s.last_previewed_at",
     SortField.FILE_SIZE: "s.size_bytes",
