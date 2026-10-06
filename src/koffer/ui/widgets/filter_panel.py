@@ -183,6 +183,8 @@ class FilterPanel(QWidget):
             chips.append("availability=" + ",".join(str(a) for a in self._filters.availability))
         if self._filters.favorite:
             chips.append("favourites")
+        if self._filters.previewed_only:
+            chips.append("previewed")
         self._active_label.setText("Active: " + (", ".join(chips) if chips else "none"))
 
 
