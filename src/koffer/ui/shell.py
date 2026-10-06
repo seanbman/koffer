@@ -44,7 +44,7 @@ from koffer.ui.screens.source_detail import SourceDetailScreen
 from koffer.ui.screens.sources import SourcesScreen
 from koffer.ui.screens.suggestions_review import SuggestionsReviewScreen
 from koffer.ui.screens.welcome import WelcomeScreen
-from koffer.ui.tokens import CANVAS, CLAY, SHELL_STYLESHEET
+from koffer.ui.tokens import CANVAS, SHELL_STYLESHEET
 from koffer.ui.widgets.transport import TransportBar
 from koffer.ui.window_geometry import WindowGeometryStore
 
