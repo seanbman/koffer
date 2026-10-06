@@ -71,7 +71,9 @@ class AppContext:
         scheduler = JobScheduler(factory, io_workers=io_workers, recover_on_start=True)
         source_service = SourceService(factory, scheduler)
         search_service = SearchService(factory)
+        settings_service = SettingsService(factory)
         playback_service = PlaybackService()
+        playback_service.set_gain_db(settings_service.load().audio_interface.preview_gain)
         waveform_cache = WaveformCache(paths.cache_dir)
         collection_service = CollectionService(factory)
         metadata_service = MetadataService(factory, scheduler)
@@ -83,7 +85,6 @@ class AppContext:
         similarity_service = SimilarityService(factory, paths.cache_dir, scheduler=scheduler)
         maintenance_service = MaintenanceService(factory, scheduler, paths)
         recovery_service = RecoveryService(factory)
-        settings_service = SettingsService(factory)
         return cls(
             paths=paths,
             connection_factory=factory,
