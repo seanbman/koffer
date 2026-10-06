@@ -71,6 +71,7 @@ class SampleFilters:
     source_ids: tuple[EntityId, ...] = ()
     collection_ids: tuple[EntityId, ...] = ()
     favorite: bool | None = None
+    previewed_only: bool = False
     channels: tuple[int, ...] = ()
     keys: tuple[str, ...] = ()
 
@@ -88,6 +89,7 @@ class SampleFilters:
             and not self.source_ids
             and not self.collection_ids
             and self.favorite is None
+            and not self.previewed_only
             and not self.channels
             and not self.keys
         )
