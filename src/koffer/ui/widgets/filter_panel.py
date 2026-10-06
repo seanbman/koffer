@@ -19,9 +19,10 @@ from koffer.domain.query import NumericRange, SampleFilters
 
 
 class FilterPanel(QWidget):
-    """Foundational filter groups wired to SampleFilters (docs/12 S02)."""
+    """Structured S02 query controls wired to SampleFilters."""
 
     filters_changed = Signal(object)
+    save_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -91,10 +92,18 @@ class FilterPanel(QWidget):
         self._favorite.stateChanged.connect(self._emit_filters)
         layout.addWidget(self._favorite)
 
+        actions = QHBoxLayout()
+        save = QPushButton("Save Search…")
+        save.setObjectName("primaryButton")
+        save.clicked.connect(self.save_requested.emit)
+        actions.addWidget(save)
+
         clear = QPushButton("Clear filters")
         clear.setObjectName("secondaryButton")
         clear.clicked.connect(self.clear_filters)
-        layout.addWidget(clear)
+        actions.addWidget(clear)
+        actions.addStretch(1)
+        layout.addLayout(actions)
 
         self._sync_active_label()
 
