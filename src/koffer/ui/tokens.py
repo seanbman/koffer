@@ -224,4 +224,89 @@ QWidget#contentStatePanel {{
     border: 1px solid {BORDER};
     border-radius: 6px;
 }}
+QMenuBar {
+    background-color: {CANVAS};
+    color: {MUTED};
+    border-bottom: 1px solid {BORDER};
+}
+QMenuBar::item {
+    padding: 4px 8px;
+    background: transparent;
+}
+QMenuBar::item:selected {
+    background-color: {SURFACE_2};
+    color: {TEXT};
+}
+QMenu {
+    background-color: {SURFACE_1};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+}
+QMenu::item {
+    padding: 6px 28px 6px 10px;
+}
+QMenu::item:selected {
+    background-color: {SURFACE_3};
+}
+QLineEdit,
+QComboBox,
+QSpinBox,
+QDoubleSpinBox {
+    background-color: {SURFACE_1};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    border-radius: 5px;
+    padding: 5px 8px;
+    min-height: 26px;
+    selection-background-color: {CLAY};
+    selection-color: {CANVAS};
+}
+QLineEdit:focus,
+QComboBox:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus {
+    border-color: {CLAY_BRIGHT};
+}
+QComboBox QAbstractItemView {
+    background-color: {SURFACE_1};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    selection-background-color: {SURFACE_3};
+}
+QCheckBox {
+    color: {TEXT};
+    spacing: 8px;
+}
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+    border: 1px solid {BORDER};
+    border-radius: 3px;
+    background-color: {SURFACE_1};
+}
+QCheckBox::indicator:checked {
+    background-color: {CLAY};
+    border-color: {CLAY_BRIGHT};
+}
+QScrollBar:vertical {
+    background: {CANVAS};
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: {SURFACE_3};
+    min-height: 24px;
+    border-radius: 5px;
+}
+QScrollBar:horizontal {
+    background: {CANVAS};
+    height: 10px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: {SURFACE_3};
+    min-width: 24px;
+    border-radius: 5px;
+}
+
 """
