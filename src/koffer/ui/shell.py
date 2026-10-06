@@ -286,12 +286,16 @@ class MainWindow(QMainWindow):
             ("Maintenance", SCREEN_MAINTENANCE),
         ):
             action = QAction(label, self)
-            action.triggered.connect(lambda _checked=False, target=screen: self.navigate(target))
+            action.triggered.connect(
+                lambda _checked=False, target=screen: self.navigate(target),
+            )
             library_menu.addAction(action)
 
         view_menu = menu_bar.addMenu("&View")
         sidebar = QAction("Toggle Sidebar", self)
-        sidebar.triggered.connect(lambda: self._nav.setVisible(not self._nav.isVisible()))
+        sidebar.triggered.connect(
+            lambda: self._nav.setVisible(not self._nav.isVisible()),
+        )
         view_menu.addAction(sidebar)
         inspector = QAction("Toggle Inspector", self)
         inspector.triggered.connect(self._library.inspector.toggle_collapsed)
@@ -598,7 +602,10 @@ class MainWindow(QMainWindow):
         self._nav_library = self._make_nav_button("Library", self._open_all_samples)
         column.addWidget(self._nav_library)
 
-        self._nav_favourites = self._make_nav_button("Favourites", self._open_favourites)
+        self._nav_favourites = self._make_nav_button(
+            "Favourites",
+            self._open_favourites,
+        )
         column.addWidget(self._nav_favourites)
 
         self._nav_recents = self._make_nav_button("Recents", self._open_recents)
@@ -651,15 +658,21 @@ class MainWindow(QMainWindow):
 
     def _update_nav_checked(self) -> None:
         library_active = self._current_screen == SCREEN_LIBRARY
-        self._nav_library.setChecked(library_active and self._library_nav_mode == "library")
+        self._nav_library.setChecked(
+            library_active and self._library_nav_mode == "library"
+        )
         self._nav_favourites.setChecked(
             library_active and self._library_nav_mode == "favourites"
         )
-        self._nav_recents.setChecked(library_active and self._library_nav_mode == "recents")
+        self._nav_recents.setChecked(
+            library_active and self._library_nav_mode == "recents"
+        )
         self._nav_collections.setChecked(
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
         )
-        self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
+        self._nav_sources.setChecked(
+            self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL}
+        )
         self._nav_suggestions.setChecked(self._current_screen == SCREEN_SUGGESTIONS)
         self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
         self._nav_settings.setChecked(
