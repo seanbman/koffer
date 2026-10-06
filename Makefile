@@ -1,11 +1,11 @@
 .PHONY: repo-guard lint typecheck test qa clean package package-stage licenses
 
 repo-guard:
-	@tracked="$(git ls-files | grep -E '^\\.grapher(/|$)' || true)"; \
-	if [ -n "$tracked" ]; then \
+	@tracked="$$(git ls-files | grep -E '^\.grapher(/|$$)' || true)"; \
+	if [ -n "$$tracked" ]; then \
 		echo "ERROR: tracked .grapher state is forbidden."; \
 		echo "Grapher is local Dreadnought control-plane state, not Koffer source."; \
-		echo "$tracked"; \
+		echo "$$tracked"; \
 		exit 1; \
 	fi
 
