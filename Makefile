@@ -11,7 +11,7 @@ repo-guard:
 
 lint:
 	uv run --no-sync python -m ruff check .
-	uv run --no-sync python -m ruff format --check .
+	uv run --no-sync python -m ruff format --check --diff .
 
 typecheck:
 	uv run --no-sync python -m mypy src/koffer
