@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
             button.setObjectName("savedSearchNavButton")
             button.setCheckable(True)
             button.clicked.connect(
-                lambda _checked=False, item=saved: self._open_saved_search(item)
+                lambda _checked=False, item=saved: self._open_saved_search(item),
             )
             button.setProperty("savedSearchId", str(saved.id))
             self._saved_search_layout.addWidget(button)
@@ -658,21 +658,15 @@ class MainWindow(QMainWindow):
 
     def _update_nav_checked(self) -> None:
         library_active = self._current_screen == SCREEN_LIBRARY
-        self._nav_library.setChecked(
-            library_active and self._library_nav_mode == "library"
-        )
+        self._nav_library.setChecked(library_active and self._library_nav_mode == "library")
         self._nav_favourites.setChecked(
             library_active and self._library_nav_mode == "favourites"
         )
-        self._nav_recents.setChecked(
-            library_active and self._library_nav_mode == "recents"
-        )
+        self._nav_recents.setChecked(library_active and self._library_nav_mode == "recents")
         self._nav_collections.setChecked(
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
         )
-        self._nav_sources.setChecked(
-            self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL}
-        )
+        self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
         self._nav_suggestions.setChecked(self._current_screen == SCREEN_SUGGESTIONS)
         self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
         self._nav_settings.setChecked(
