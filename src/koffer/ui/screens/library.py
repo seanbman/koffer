@@ -23,7 +23,14 @@ from PySide6.QtWidgets import (
 from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
-from koffer.domain.query import SampleFilters, SampleQuery
+from koffer.domain.query import (
+    SampleFilters,
+    SampleQuery,
+    SavedSearch,
+    SortDirection,
+    SortField,
+    SortSpec,
+)
 from koffer.services.playback import PlaybackState
 from koffer.ui.models.sample_table import SampleTableModel
 from koffer.ui.widgets.content_state import ContentState, ContentStatePanel
@@ -42,6 +49,7 @@ class LibraryBrowserScreen(QWidget):
     find_similar_requested = Signal(str)
     add_to_collection_requested = Signal(str)
     favourite_changed = Signal(str, bool)
+    saved_searches_changed = Signal()
 
     def __init__(
         self,
@@ -59,9 +67,9 @@ class LibraryBrowserScreen(QWidget):
         root.setSpacing(12)
 
         header = QHBoxLayout()
-        title = QLabel("Library")
-        title.setObjectName("pageTitle")
-        header.addWidget(title)
+        self._title = QLabel("All Samples")
+        self._title.setObjectName("pageTitle")
+        header.addWidget(self._title)
         header.addStretch(1)
         self._count_label = QLabel("0 samples")
         self._count_label.setObjectName("bodyText")
@@ -87,6 +95,7 @@ class LibraryBrowserScreen(QWidget):
         self._filter_panel = FilterPanel()
         self._filter_panel.setVisible(False)
         self._filter_panel.filters_changed.connect(self._on_filters_changed)
+        self._filter_panel.save_requested.connect(self._save_current_search)
         root.addWidget(self._filter_panel)
 
         self._state_panel = ContentStatePanel()
@@ -182,9 +191,65 @@ class LibraryBrowserScreen(QWidget):
     def search_field(self) -> QLineEdit:
         return self._search_field
 
+    @property
+    def view_title(self) -> str:
+        return self._title.text()
+
+    def show_all_samples(self) -> None:
+        """Open the canonical unscoped library view."""
+        self._apply_named_view(
+            "All Samples",
+            SampleQuery(sort=SortSpec(field=SortField.NAME, direction=SortDirection.ASC)),
+        )
+
+    def show_favourites(self) -> None:
+        """Open the dynamic Favourites library view."""
+        self._apply_named_view(
+            "Favourites",
+            SampleQuery(
+                filters=SampleFilters(favorite=True),
+                sort=SortSpec(field=SortField.NAME, direction=SortDirection.ASC),
+            ),
+        )
+
+    def show_recents(self) -> None:
+        """Open Samples that have actually been previewed, newest first."""
+        self._apply_named_view(
+            "Recents",
+            SampleQuery(
+                filters=SampleFilters(previewed_only=True),
+                sort=SortSpec(field=SortField.LAST_USED, direction=SortDirection.DESC),
+            ),
+        )
+
+    def show_saved_search(self, saved: SavedSearch) -> None:
+        """Open a persisted dynamic SampleQuery without converting it to a static list."""
+        self._apply_named_view(saved.name, saved.query)
+
     def focus_search(self) -> None:
         self._search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
         self._search_field.selectAll()
+
+    def _apply_named_view(self, title: str, query: SampleQuery) -> None:
+        self._title.setText(title)
+        self._search_field.blockSignals(True)
+        self._search_field.setText(query.text)
+        self._search_field.blockSignals(False)
+        self._filter_panel.set_filters(query.filters)
+        self._model.set_query(query)
+        self._sync_count()
+        self._sync_content_state()
+
+    def _save_current_search(self) -> None:
+        name, accepted = QInputDialog.getText(self, "Save Search", "Saved search name")
+        if not accepted or not name.strip():
+            return
+        try:
+            self._context.search_service.save_search(name, self._model.query)
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not save search", str(exc))
+            return
+        self.saved_searches_changed.emit()
 
     def clear_search_or_defocus(self) -> bool:
         """Escape while search focused: clear text once, then return focus to table."""
