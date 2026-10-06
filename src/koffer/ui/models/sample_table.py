@@ -106,7 +106,10 @@ class SampleTableModel(QAbstractTableModel):
         field = _SORTABLE_COLUMNS.get(column)
         if field is None:
             return
-        direction = SortDirection.ASC if order == Qt.SortOrder.AscendingOrder else SortDirection.DESC
+        if order == Qt.SortOrder.AscendingOrder:
+            direction = SortDirection.ASC
+        else:
+            direction = SortDirection.DESC
         if self._query.sort.field == field and self._query.sort.direction == direction:
             return
         self.set_sort(field, direction)
