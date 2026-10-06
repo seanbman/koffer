@@ -26,6 +26,17 @@ _COLUMNS: tuple[tuple[str, str], ...] = (
     ("availability", "Availability"),
 )
 
+_SORTABLE_COLUMNS: dict[int, SortField] = {
+    0: SortField.NAME,
+    1: SortField.SAMPLE_TYPE,
+    2: SortField.INSTRUMENT_SOURCE,
+    3: SortField.BPM,
+    4: SortField.KEY,
+    5: SortField.DURATION,
+    6: SortField.EXTENSION,
+    7: SortField.AVAILABILITY,
+}
+
 _Index = QModelIndex | QPersistentModelIndex
 _INVALID_INDEX = QModelIndex()
 
@@ -85,6 +96,24 @@ class SampleTableModel(QAbstractTableModel):
     def refresh(self) -> None:
         """Re-count and clear cache for the current query."""
         self.set_query(self._query)
+
+    def sort(
+        self,
+        column: int,
+        order: Qt.SortOrder = Qt.SortOrder.AscendingOrder,
+    ) -> None:
+        """Sort a visible browser column through SearchService, preserving paging."""
+        field = _SORTABLE_COLUMNS.get(column)
+        if field is None:
+            return
+        direction = (
+            SortDirection.ASC
+            if order == Qt.SortOrder.AscendingOrder
+            else SortDirection.DESC
+        )
+        if self._query.sort.field == field and self._query.sort.direction == direction:
+            return
+        self.set_sort(field, direction)
 
     def rowCount(self, parent: _Index = _INVALID_INDEX) -> int:  # noqa: N802
         if parent.isValid():
