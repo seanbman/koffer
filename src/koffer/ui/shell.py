@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut, QShowEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -21,6 +21,7 @@ from koffer.app_context import AppContext
 from koffer.domain.errors import ApplicationError
 from koffer.domain.file_operations import FileOperationPlan
 from koffer.domain.ids import EntityId
+from koffer.domain.query import SavedSearch
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
 from koffer.ui.screens.about import AboutDiagnosticsScreen
 from koffer.ui.screens.activity import ActivityCenterScreen
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
         self._context = context
         self._directory_picker = directory_picker or native_directory_picker
         self._current_screen = SCREEN_WELCOME
+        self._library_nav_mode = "library"
         self._geometry_store = WindowGeometryStore(context.paths.config_dir)
         self._restore_geometry = restore_geometry
         self._geometry_applied = False
@@ -101,12 +103,21 @@ class MainWindow(QMainWindow):
         shell.setObjectName("kofferShell")
         # Preserve Phase 0 smoke identity on the shell canvas.
         shell.setProperty("canvasColor", CANVAS_COLOR)
-        layout = QHBoxLayout(shell)
+        layout = QVBoxLayout(shell)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        self._top_bar = self._build_top_bar()
+        layout.addWidget(self._top_bar)
+
+        body = QWidget()
+        body.setObjectName("kofferBody")
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+
         self._nav = self._build_nav()
-        layout.addWidget(self._nav)
+        body_layout.addWidget(self._nav)
 
         center = QWidget()
         center_layout = QVBoxLayout(center)
@@ -121,7 +132,8 @@ class MainWindow(QMainWindow):
         self._transport.bind_selection_loader(self._load_playback_from_library)
         center_layout.addWidget(self._transport)
 
-        layout.addWidget(center, stretch=1)
+        body_layout.addWidget(center, stretch=1)
+        layout.addWidget(body, stretch=1)
 
         self._welcome = WelcomeScreen()
         self._library = LibraryBrowserScreen(context)
@@ -179,6 +191,7 @@ class MainWindow(QMainWindow):
         self._library.prepare_requested.connect(self._open_sample_preparation)
         self._library.edit_metadata_requested.connect(self._open_metadata_editor)
         self._library.find_similar_requested.connect(self._open_similar_sounds)
+        self._library.saved_searches_changed.connect(self._refresh_saved_search_nav)
         self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
         self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
@@ -204,11 +217,167 @@ class MainWindow(QMainWindow):
             lambda: self.navigate(SCREEN_SETTINGS_AUDIO)
         )
 
+        self._build_menus()
+        self._refresh_saved_search_nav()
         self._install_global_shortcuts()
 
         self.setCentralWidget(shell)
         # Geometry is applied on first showEvent so offscreen sizes stick.
         self._sync_initial_route()
+
+    def _build_top_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("kofferTopBar")
+        bar.setFixedHeight(40)
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(16, 0, 16, 0)
+        row.setSpacing(16)
+
+        brand = QLabel("KOFFER")
+        brand.setObjectName("topBarBrand")
+        row.addWidget(brand)
+
+        self._workspace_label = QLabel("Welcome")
+        self._workspace_label.setObjectName("topBarWorkspace")
+        row.addWidget(self._workspace_label)
+        row.addStretch(1)
+
+        status = QLabel("● LOCAL")
+        status.setObjectName("topBarStatus")
+        status.setToolTip("Koffer core library features work locally and offline.")
+        row.addWidget(status)
+        return bar
+
+    def _build_menus(self) -> None:
+        menu_bar = self.menuBar()
+        menu_bar.setObjectName("kofferMenuBar")
+
+        file_menu = menu_bar.addMenu("&File")
+        add_source = QAction("Add Source…", self)
+        add_source.setShortcut(QKeySequence("Ctrl+O"))
+        add_source.triggered.connect(self._pick_and_add_source)
+        file_menu.addAction(add_source)
+        file_menu.addSeparator()
+        settings = QAction("Settings", self)
+        settings.setShortcut(QKeySequence("Ctrl+,"))
+        settings.triggered.connect(lambda: self.navigate(SCREEN_SETTINGS_GENERAL))
+        file_menu.addAction(settings)
+        file_menu.addSeparator()
+        quit_action = QAction("Quit", self)
+        quit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
+
+        library_menu = menu_bar.addMenu("&Library")
+        for label, callback in (
+            ("All Samples", self._open_all_samples),
+            ("Favourites", self._open_favourites),
+            ("Recents", self._open_recents),
+        ):
+            action = QAction(label, self)
+            action.triggered.connect(callback)
+            library_menu.addAction(action)
+        library_menu.addSeparator()
+        for label, screen in (
+            ("Collections", SCREEN_COLLECTIONS),
+            ("Sources", SCREEN_SOURCES),
+            ("Suggestions Review", SCREEN_SUGGESTIONS),
+            ("Activity", SCREEN_ACTIVITY),
+            ("Maintenance", SCREEN_MAINTENANCE),
+        ):
+            action = QAction(label, self)
+            action.triggered.connect(lambda _checked=False, target=screen: self.navigate(target))
+            library_menu.addAction(action)
+
+        view_menu = menu_bar.addMenu("&View")
+        sidebar = QAction("Toggle Sidebar", self)
+        sidebar.triggered.connect(lambda: self._nav.setVisible(not self._nav.isVisible()))
+        view_menu.addAction(sidebar)
+        inspector = QAction("Toggle Inspector", self)
+        inspector.triggered.connect(self._library.inspector.toggle_collapsed)
+        view_menu.addAction(inspector)
+        reset = QAction("Reset Pane Layout", self)
+        reset.triggered.connect(lambda: self._library.splitter.setSizes([900, 340]))
+        view_menu.addAction(reset)
+
+        help_menu = menu_bar.addMenu("&Help")
+        about = QAction("About & Diagnostics", self)
+        about.triggered.connect(lambda: self.navigate(SCREEN_ABOUT))
+        help_menu.addAction(about)
+
+    def _open_all_samples(self) -> None:
+        self._library_nav_mode = "library"
+        self._library.show_all_samples()
+        self.navigate(SCREEN_LIBRARY)
+
+    def _open_favourites(self) -> None:
+        self._library_nav_mode = "favourites"
+        self._library.show_favourites()
+        self.navigate(SCREEN_LIBRARY)
+
+    def _open_recents(self) -> None:
+        self._library_nav_mode = "recents"
+        self._library.show_recents()
+        self.navigate(SCREEN_LIBRARY)
+
+    def _open_saved_search(self, saved: SavedSearch) -> None:
+        self._library_nav_mode = f"saved:{saved.id}"
+        self._library.show_saved_search(saved)
+        self.navigate(SCREEN_LIBRARY)
+
+    def _refresh_saved_search_nav(self) -> None:
+        if not hasattr(self, "_saved_search_layout"):
+            return
+        while self._saved_search_layout.count():
+            item = self._saved_search_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        saved_searches = self._context.search_service.list_saved_searches()
+        if not saved_searches:
+            empty = QLabel("No saved searches")
+            empty.setObjectName("navEmptyText")
+            self._saved_search_layout.addWidget(empty)
+            return
+
+        for saved in saved_searches:
+            button = QPushButton(saved.name)
+            button.setObjectName("savedSearchNavButton")
+            button.setCheckable(True)
+            button.clicked.connect(
+                lambda _checked=False, item=saved: self._open_saved_search(item)
+            )
+            button.setProperty("savedSearchId", str(saved.id))
+            self._saved_search_layout.addWidget(button)
+
+    def _update_top_bar(self) -> None:
+        if self._current_screen == SCREEN_LIBRARY:
+            label = self._library.view_title
+        else:
+            label = {
+                SCREEN_WELCOME: "Welcome",
+                SCREEN_COLLECTIONS: "Collections",
+                SCREEN_COLLECTION_DETAIL: "Collection",
+                SCREEN_SOURCES: "Sources",
+                SCREEN_SOURCE_DETAIL: "Source",
+                SCREEN_SAMPLE_DETAIL: "Sample Detail",
+                SCREEN_SAMPLE_PREPARATION: "Prepare",
+                SCREEN_METADATA_EDITOR: "Metadata",
+                SCREEN_SUGGESTIONS: "Review",
+                SCREEN_SIMILAR_SOUNDS: "Similar Sounds",
+                SCREEN_IMPORT_REVIEW: "Organize",
+                SCREEN_CONFLICTS: "Conflicts",
+                SCREEN_RENDER_EXPORT: "Render / Export",
+                SCREEN_OFFLINE_RECOVERY: "Recovery",
+                SCREEN_ACTIVITY: "Activity",
+                SCREEN_SETTINGS_GENERAL: "Settings",
+                SCREEN_SETTINGS_LIBRARY: "Settings",
+                SCREEN_SETTINGS_AUDIO: "Settings",
+                SCREEN_MAINTENANCE: "Maintenance",
+                SCREEN_ABOUT: "About & Diagnostics",
+            }.get(self._current_screen, "Koffer")
+        self._workspace_label.setText(label)
 
     def _install_global_shortcuts(self) -> None:
         """Default global shortcuts from docs/28."""
