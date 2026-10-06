@@ -84,7 +84,10 @@ class SettingsAudioScreen(QWidget):
 
         root.addLayout(form)
 
-        shortcuts = QLabel("Keyboard shortcuts follow the documented desktop defaults; editing is not yet exposed here.")
+        shortcuts = QLabel(
+            "Keyboard shortcuts follow the documented desktop defaults; "
+            "editing is not yet exposed here."
+        )
         shortcuts.setObjectName("settingsShortcutEditorPlaceholder")
         shortcuts.setStyleSheet(f"color: {MUTED};")
         root.addWidget(shortcuts)
@@ -115,7 +118,7 @@ class SettingsAudioScreen(QWidget):
             preview_gain=float(self._gain.value()),
             auto_preview=self._auto_preview.isChecked(),
             loop_preview_default=self._loop.isChecked(),
-            ui_density=str(self._density.currentData() or "comfortable"),
+            ui_density=str(self._density.currentData() or "compact"),
             inspector_default_open=self._inspector.isChecked(),
             theme=str(self._theme.currentData() or "dark"),
             reduced_motion=self._reduced_motion.isChecked(),
