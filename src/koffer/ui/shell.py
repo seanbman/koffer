@@ -631,9 +631,7 @@ class MainWindow(QMainWindow):
         self._saved_search_layout.setSpacing(4)
         column.addWidget(saved_container)
 
-        self._nav_sources = self._make_nav_button(
-            "Sources", lambda: self.navigate(SCREEN_SOURCES)
-        )
+        self._nav_sources = self._make_nav_button("Sources", lambda: self.navigate(SCREEN_SOURCES))
         column.addWidget(self._nav_sources)
 
         self._nav_activity = self._make_nav_button(
@@ -659,9 +657,7 @@ class MainWindow(QMainWindow):
     def _update_nav_checked(self) -> None:
         library_active = self._current_screen == SCREEN_LIBRARY
         self._nav_library.setChecked(library_active and self._library_nav_mode == "library")
-        self._nav_favourites.setChecked(
-            library_active and self._library_nav_mode == "favourites"
-        )
+        self._nav_favourites.setChecked(library_active and self._library_nav_mode == "favourites")
         self._nav_recents.setChecked(library_active and self._library_nav_mode == "recents")
         self._nav_collections.setChecked(
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
