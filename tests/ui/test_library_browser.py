@@ -17,7 +17,7 @@ from koffer.domain import (
     new_entity_id,
     utc_now_iso,
 )
-from koffer.domain.query import SampleFilters
+from koffer.domain.query import SampleFilters, SortDirection, SortField
 from koffer.persistence import SearchIndexService
 from koffer.repositories import SampleRepository, SourceRepository
 from koffer.services.playback import PlaybackState
@@ -171,5 +171,26 @@ def test_ctrl_f_focuses_search_and_filter_panel_applies(qtbot: object, tmp_path:
         library.filter_panel.apply_filters(SampleFilters(extensions=("wav",)))
         assert library.model.rowCount() == 1
         assert "format=wav" in library.filter_panel.active_summary
+    finally:
+        context.close()
+
+
+def test_s01_table_sorting_updates_paged_query(qtbot: object, tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "sorting-ui")
+    try:
+        _seed_library(context, tmp_path, name="sort-me.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+
+        table = window.library.table
+        assert table.isSortingEnabled()
+        table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+        assert window.library.model.query.sort.field is SortField.NAME
+        assert window.library.model.query.sort.direction is SortDirection.DESC
+
+        table.sortByColumn(6, Qt.SortOrder.AscendingOrder)
+        assert window.library.model.query.sort.field is SortField.EXTENSION
+        assert window.library.model.query.sort.direction is SortDirection.ASC
     finally:
         context.close()
