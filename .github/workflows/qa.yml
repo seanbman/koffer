@@ -25,8 +25,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Sync frozen dependencies
-        run: uv sync --frozen --all-extras
+      - name: Sync frozen core + test dependencies
+        run: uv sync --frozen --extra dev
 
       - name: Lint
         run: make lint
