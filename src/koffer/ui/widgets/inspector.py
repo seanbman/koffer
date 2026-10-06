@@ -25,7 +25,7 @@ class InspectorPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("inspectorPanel")
-        self.setFixedWidth(320)
+        self.setFixedWidth(336)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self._collapsed = False
         self._sample_id: str | None = None
@@ -138,12 +138,17 @@ class InspectorPanel(QWidget):
                 f"{envelope.duration_ms} ms"
             )
 
-    def _toggle_collapse(self) -> None:
-        self._collapsed = not self._collapsed
+    def toggle_collapsed(self) -> None:
+        """Toggle between the full and compact Inspector states."""
+        self.set_collapsed(not self._collapsed)
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        """Apply a deterministic Inspector collapsed state."""
+        self._collapsed = bool(collapsed)
         self._body.setVisible(not self._collapsed)
         self._collapse_btn.setText("Expand" if self._collapsed else "Collapse")
-        if self._collapsed:
-            self.setFixedWidth(120)
-        else:
-            self.setFixedWidth(320)
+        self.setFixedWidth(120 if self._collapsed else 336)
         self.collapse_toggled.emit(self._collapsed)
+
+    def _toggle_collapse(self) -> None:
+        self.toggle_collapsed()
