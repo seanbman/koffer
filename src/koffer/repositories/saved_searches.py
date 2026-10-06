@@ -39,6 +39,7 @@ def sample_query_to_json(query: SampleQuery) -> str:
             "source_ids": [str(item) for item in filters.source_ids],
             "collection_ids": [str(item) for item in filters.collection_ids],
             "favorite": filters.favorite,
+            "previewed_only": filters.previewed_only,
             "channels": list(filters.channels),
             "keys": list(filters.keys),
         },
@@ -87,6 +88,7 @@ def sample_query_from_json(raw: str) -> SampleQuery:
                 EntityId(str(item)) for item in (filters_raw.get("collection_ids") or ())
             ),
             favorite=_optional_bool(filters_raw.get("favorite")),
+            previewed_only=bool(filters_raw.get("previewed_only", False)),
             channels=tuple(int(item) for item in (filters_raw.get("channels") or ())),
             keys=tuple(str(item) for item in (filters_raw.get("keys") or ())),
         ),
