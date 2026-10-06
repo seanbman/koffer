@@ -583,7 +583,9 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(widget)
         self._current_screen = screen_id
         self._update_nav_checked()
+        self._update_top_bar()
         self._nav.setVisible(screen_id != SCREEN_WELCOME)
+        self._transport.setVisible(screen_id != SCREEN_WELCOME)
 
     def _build_nav(self) -> QWidget:
         rail = QWidget()
@@ -591,84 +593,92 @@ class MainWindow(QMainWindow):
         rail.setFixedWidth(224)
         column = QVBoxLayout(rail)
         column.setContentsMargins(12, 16, 12, 16)
-        column.setSpacing(8)
+        column.setSpacing(6)
 
-        brand = QLabel("Koffer")
-        brand.setStyleSheet(f"color: {CLAY}; font-size: 18px; font-weight: 700;")
-        column.addWidget(brand)
-
-        self._nav_library = QPushButton("Library")
-        self._nav_library.setObjectName("navButton")
-        self._nav_library.setCheckable(True)
-        self._nav_library.clicked.connect(lambda: self.navigate(SCREEN_LIBRARY))
+        self._nav_library = self._make_nav_button("Library", self._open_all_samples)
         column.addWidget(self._nav_library)
 
-        self._nav_collections = QPushButton("Collections")
-        self._nav_collections.setObjectName("navButton")
-        self._nav_collections.setCheckable(True)
-        self._nav_collections.clicked.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
-        column.addWidget(self._nav_collections)
+        self._nav_favourites = self._make_nav_button("Favourites", self._open_favourites)
+        column.addWidget(self._nav_favourites)
 
-        self._nav_sources = QPushButton("Sources")
-        self._nav_sources.setObjectName("navButton")
-        self._nav_sources.setCheckable(True)
-        self._nav_sources.clicked.connect(lambda: self.navigate(SCREEN_SOURCES))
-        column.addWidget(self._nav_sources)
+        self._nav_recents = self._make_nav_button("Recents", self._open_recents)
+        column.addWidget(self._nav_recents)
 
-        self._nav_suggestions = QPushButton("Suggestions")
-        self._nav_suggestions.setObjectName("navButton")
-        self._nav_suggestions.setCheckable(True)
-        self._nav_suggestions.clicked.connect(lambda: self.navigate(SCREEN_SUGGESTIONS))
+        self._nav_suggestions = self._make_nav_button(
+            "Review", lambda: self.navigate(SCREEN_SUGGESTIONS)
+        )
         column.addWidget(self._nav_suggestions)
 
-        self._nav_activity = QPushButton("Activity")
-        self._nav_activity.setObjectName("navButton")
-        self._nav_activity.setCheckable(True)
-        self._nav_activity.clicked.connect(lambda: self.navigate(SCREEN_ACTIVITY))
+        self._nav_collections = self._make_nav_button(
+            "Collections", lambda: self.navigate(SCREEN_COLLECTIONS)
+        )
+        column.addWidget(self._nav_collections)
+
+        saved_label = QLabel("SAVED SEARCHES")
+        saved_label.setObjectName("navSectionLabel")
+        column.addWidget(saved_label)
+        saved_container = QWidget()
+        saved_container.setObjectName("savedSearchNav")
+        self._saved_search_layout = QVBoxLayout(saved_container)
+        self._saved_search_layout.setContentsMargins(0, 0, 0, 0)
+        self._saved_search_layout.setSpacing(4)
+        column.addWidget(saved_container)
+
+        self._nav_sources = self._make_nav_button(
+            "Sources", lambda: self.navigate(SCREEN_SOURCES)
+        )
+        column.addWidget(self._nav_sources)
+
+        self._nav_activity = self._make_nav_button(
+            "Activity", lambda: self.navigate(SCREEN_ACTIVITY)
+        )
         column.addWidget(self._nav_activity)
 
-        self._nav_recovery = QPushButton("Recovery")
-        self._nav_recovery.setObjectName("navButton")
-        self._nav_recovery.setCheckable(True)
-        self._nav_recovery.clicked.connect(lambda: self.navigate(SCREEN_OFFLINE_RECOVERY))
-        column.addWidget(self._nav_recovery)
-
-        self._nav_settings = QPushButton("Settings")
-        self._nav_settings.setObjectName("navButton")
-        self._nav_settings.setCheckable(True)
-        self._nav_settings.clicked.connect(lambda: self.navigate(SCREEN_SETTINGS_GENERAL))
+        self._nav_settings = self._make_nav_button(
+            "Settings", lambda: self.navigate(SCREEN_SETTINGS_GENERAL)
+        )
         column.addWidget(self._nav_settings)
-
-        self._nav_maintenance = QPushButton("Maintenance")
-        self._nav_maintenance.setObjectName("navButton")
-        self._nav_maintenance.setCheckable(True)
-        self._nav_maintenance.clicked.connect(lambda: self.navigate(SCREEN_MAINTENANCE))
-        column.addWidget(self._nav_maintenance)
-
-        self._nav_about = QPushButton("About")
-        self._nav_about.setObjectName("navButton")
-        self._nav_about.setCheckable(True)
-        self._nav_about.clicked.connect(lambda: self.navigate(SCREEN_ABOUT))
-        column.addWidget(self._nav_about)
 
         column.addStretch(1)
         return rail
 
+    def _make_nav_button(self, label: str, callback: object) -> QPushButton:
+        button = QPushButton(label)
+        button.setObjectName("navButton")
+        button.setCheckable(True)
+        button.clicked.connect(callback)  # type: ignore[arg-type]
+        return button
+
     def _update_nav_checked(self) -> None:
-        self._nav_library.setChecked(self._current_screen == SCREEN_LIBRARY)
+        library_active = self._current_screen == SCREEN_LIBRARY
+        self._nav_library.setChecked(library_active and self._library_nav_mode == "library")
+        self._nav_favourites.setChecked(
+            library_active and self._library_nav_mode == "favourites"
+        )
+        self._nav_recents.setChecked(library_active and self._library_nav_mode == "recents")
         self._nav_collections.setChecked(
             self._current_screen in {SCREEN_COLLECTIONS, SCREEN_COLLECTION_DETAIL}
         )
         self._nav_sources.setChecked(self._current_screen in {SCREEN_SOURCES, SCREEN_SOURCE_DETAIL})
         self._nav_suggestions.setChecked(self._current_screen == SCREEN_SUGGESTIONS)
         self._nav_activity.setChecked(self._current_screen == SCREEN_ACTIVITY)
-        self._nav_recovery.setChecked(self._current_screen == SCREEN_OFFLINE_RECOVERY)
         self._nav_settings.setChecked(
             self._current_screen
-            in {SCREEN_SETTINGS_GENERAL, SCREEN_SETTINGS_LIBRARY, SCREEN_SETTINGS_AUDIO}
+            in {
+                SCREEN_SETTINGS_GENERAL,
+                SCREEN_SETTINGS_LIBRARY,
+                SCREEN_SETTINGS_AUDIO,
+                SCREEN_MAINTENANCE,
+            }
         )
-        self._nav_maintenance.setChecked(self._current_screen == SCREEN_MAINTENANCE)
-        self._nav_about.setChecked(self._current_screen == SCREEN_ABOUT)
+
+        saved_id = (
+            self._library_nav_mode.removeprefix("saved:")
+            if library_active and self._library_nav_mode.startswith("saved:")
+            else ""
+        )
+        for button in self._nav.findChildren(QPushButton, "savedSearchNavButton"):
+            button.setChecked(button.property("savedSearchId") == saved_id)
 
     def _sync_initial_route(self) -> None:
         if self._context.source_service.list():
