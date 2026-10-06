@@ -50,8 +50,9 @@ class SettingsAudioScreen(QWidget):
 
         self._gain = QDoubleSpinBox()
         self._gain.setObjectName("settingsPreviewGain")
-        self._gain.setRange(0.0, 1.5)
-        self._gain.setSingleStep(0.05)
+        self._gain.setRange(-60.0, 12.0)
+        self._gain.setSingleStep(1.0)
+        self._gain.setSuffix(" dB")
         form.addRow("Preview gain", self._gain)
 
         self._auto_preview = QCheckBox("Auto-preview on selection")
@@ -83,7 +84,7 @@ class SettingsAudioScreen(QWidget):
 
         root.addLayout(form)
 
-        shortcuts = QLabel("Keyboard shortcut editor arrives with Phase 13 UX completion.")
+        shortcuts = QLabel("Keyboard shortcuts follow the documented desktop defaults; editing is not yet exposed here.")
         shortcuts.setObjectName("settingsShortcutEditorPlaceholder")
         shortcuts.setStyleSheet(f"color: {MUTED};")
         root.addWidget(shortcuts)
@@ -119,4 +120,5 @@ class SettingsAudioScreen(QWidget):
             theme=str(self._theme.currentData() or "dark"),
             reduced_motion=self._reduced_motion.isChecked(),
         )
+        self._context.playback_service.set_gain_db(float(self._gain.value()))
         self.refresh()
