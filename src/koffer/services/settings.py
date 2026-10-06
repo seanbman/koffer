@@ -40,18 +40,18 @@ class LibraryAnalysisSettings:
     analysis_concurrency: int = 2
     idle_only_deep_analysis: bool = True
     waveform_cache_enabled: bool = True
-    similarity_indexing: bool = True
-    local_model_enabled: bool = True
+    similarity_indexing: bool = False
+    local_model_enabled: bool = False
     cache_limit_mb: int = 4096
 
 
 @dataclass
 class AudioInterfaceSettings:
     output_device: str = "default"
-    preview_gain: float = 0.8
+    preview_gain: float = -6.0
     auto_preview: bool = False
     loop_preview_default: bool = False
-    ui_density: str = "comfortable"
+    ui_density: str = "compact"
     inspector_default_open: bool = True
     theme: str = "dark"
     reduced_motion: bool = False
