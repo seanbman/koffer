@@ -17,7 +17,12 @@ from koffer.filesystem.scanner import (
     enumerate_audio_files,
     normalize_relative_path,
 )
-from koffer.jobs.cancel import is_cancel_requested, mark_cancelled, persist_progress
+from koffer.jobs.cancel import (
+    is_cancel_requested,
+    mark_cancelled,
+    persist_progress,
+    wait_if_paused,
+)
 from koffer.jobs.progress import ProgressEvent, ProgressThrottle
 from koffer.persistence.search_index import SearchIndexService
 from koffer.repositories.exclusions import SourceExclusionRepository
@@ -42,6 +47,12 @@ def run_source_scan(
     scope = json.loads(job.scope_json)
     source_id = EntityId(str(scope["source_id"]))
     mode = ScanMode(str(scope.get("mode", ScanMode.INCREMENTAL)))
+
+    control_state = wait_if_paused(conn, job.id)
+    if control_state is JobState.CANCEL_REQUESTED:
+        latest = jobs.get(job.id) or job
+        return mark_cancelled(conn, latest)
+    job = jobs.get(job.id) or job
 
     now = utc_now_iso()
     running = replace(
@@ -217,6 +228,7 @@ def _apply_discovery(
     probe_sample_ids: list[EntityId] = []
 
     for index, item in enumerate(discovered, start=1):
+        wait_if_paused(conn, job.id)
         if is_cancel_requested(conn, job.id):
             # Preserve rows already upserted; stop before missing-mark / FTS refresh.
             sources_repo.update(
