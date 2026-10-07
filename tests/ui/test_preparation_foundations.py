@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QCheckBox, QLabel, QPushButton, QSpinBox, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QWidget,
+)
 
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_sine_wav
@@ -12,6 +20,7 @@ from koffer.domain.enums import JobState
 from koffer.filesystem.hashing import content_fingerprint
 from koffer.repositories.samples import SampleRepository
 from koffer.ui.shell import MainWindow
+from koffer.ui.widgets.waveform_view import WaveformView
 
 
 def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path: Path) -> None:
@@ -45,6 +54,32 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         assert source_label is not None
         assert "tone.wav" in source_label.text()
 
+        waveform = window.findChild(WaveformView, "samplePreparationWaveform")
+        waveform_state = window.findChild(QLabel, "samplePreparationWaveformState")
+        assert waveform is not None
+        assert waveform_state is not None
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: "loading" not in waveform_state.text().lower(),
+            timeout=5_000,
+        )
+        assert "unavailable" not in waveform_state.text().lower()
+
+        normalize_peak = window.findChild(
+            QDoubleSpinBox,
+            "samplePreparationNormalizePeak",
+        )
+        fine_cents = window.findChild(QSpinBox, "samplePreparationFineCents")
+        channels = window.findChild(QComboBox, "samplePreparationChannels")
+        sample_rate = window.findChild(QComboBox, "samplePreparationSampleRate")
+        bit_depth = window.findChild(QComboBox, "samplePreparationBitDepth")
+        output_format = window.findChild(QComboBox, "samplePreparationOutputFormat")
+        assert normalize_peak is not None
+        assert fine_cents is not None
+        assert channels is not None
+        assert sample_rate is not None
+        assert bit_depth is not None
+        assert output_format is not None
+
         trim_start = window.findChild(QSpinBox, "samplePreparationTrimStart")
         assert trim_start is not None
         trim_start.setValue(120)
@@ -63,6 +98,28 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         assert trim_start.value() == 0
         assert reverse.isChecked() is False
         assert content_fingerprint(media) == before
+
+        gain = window.findChild(QDoubleSpinBox, "samplePreparationGain")
+        assert gain is not None
+        gain.setValue(2.0)
+        preview = window.findChild(QPushButton, "samplePreparationPreviewButton")
+        preview_note = window.findChild(QLabel, "samplePreparationPreviewNote")
+        assert preview is not None
+        assert preview_note is not None
+        preview.click()
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: "ready" in preview_note.text().lower(),
+            timeout=15_000,
+        )
+        assert context.playback_service.sample_id == samples[0].id
+        assert context.playback_service.path is not None
+        assert context.playback_service.path != media.resolve()
+        assert context.playback_service.path.is_file()
+        assert window.sample_preparation.preview_path == context.playback_service.path
+        assert content_fingerprint(media) == before
+
+        gain.setValue(3.0)
+        assert window.sample_preparation.preview_path is None
 
         export = window.findChild(QPushButton, "samplePreparationExportButton")
         assert export is not None
