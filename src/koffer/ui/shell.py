@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self._context = context
         self._directory_picker = directory_picker or native_directory_picker
         self._current_screen = SCREEN_WELCOME
+        self._sample_detail_return_screen = SCREEN_LIBRARY
         self._library_nav_mode = "library"
         self._geometry_store = WindowGeometryStore(context.paths.config_dir)
         self._restore_geometry = restore_geometry
@@ -159,7 +160,7 @@ class MainWindow(QMainWindow):
         self._welcome = WelcomeScreen()
         self._library = LibraryBrowserScreen(context)
         self._collections = CollectionsScreen(context.collection_service)
-        self._collection_detail = CollectionDetailScreen(context.collection_service)
+        self._collection_detail = CollectionDetailScreen(context)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
         self._sample_detail = SampleDetailScreen(context)
@@ -215,13 +216,18 @@ class MainWindow(QMainWindow):
         self._source_detail.back_requested.connect(lambda: self.navigate(SCREEN_SOURCES))
         self._collections.collection_selected.connect(self._open_collection_detail)
         self._collection_detail.back_requested.connect(lambda: self.navigate(SCREEN_COLLECTIONS))
+        self._collection_detail.selection_changed.connect(self._on_collection_selection)
+        self._collection_detail.open_sample_detail_requested.connect(
+            self._open_collection_sample_detail
+        )
+        self._collection_detail.prepare_requested.connect(self._open_sample_preparation)
         self._library.selection_changed.connect(self._on_library_selection)
         self._library.open_sample_detail_requested.connect(self._open_sample_detail)
         self._library.prepare_requested.connect(self._open_sample_preparation)
         self._library.edit_metadata_requested.connect(self._open_metadata_editor)
         self._library.find_similar_requested.connect(self._open_similar_sounds)
         self._library.saved_searches_changed.connect(self._refresh_saved_search_nav)
-        self._sample_detail.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
+        self._sample_detail.back_requested.connect(self._return_from_sample_detail)
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
         self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
         self._sample_detail.find_similar_requested.connect(self._open_similar_sounds)
@@ -457,7 +463,9 @@ class MainWindow(QMainWindow):
             label = {
                 SCREEN_WELCOME: "Welcome",
                 SCREEN_COLLECTIONS: "Collections",
-                SCREEN_COLLECTION_DETAIL: "Collection",
+                SCREEN_COLLECTION_DETAIL: (
+                    f"Collections / {self._collection_detail.collection_name or 'Collection'}"
+                ),
                 SCREEN_SOURCES: "Sources",
                 SCREEN_SOURCE_DETAIL: "Source",
                 SCREEN_SAMPLE_DETAIL: f"Sample / {self._sample_detail.sample_name or 'Detail'}",
@@ -820,12 +828,23 @@ class MainWindow(QMainWindow):
         self.navigate(SCREEN_COLLECTION_DETAIL)
 
     def _open_sample_detail(self, sample_id: object) -> None:
+        self._sample_detail_return_screen = SCREEN_LIBRARY
+        self._show_sample_detail(sample_id)
+
+    def _open_collection_sample_detail(self, sample_id: object) -> None:
+        self._sample_detail_return_screen = SCREEN_COLLECTION_DETAIL
+        self._show_sample_detail(sample_id)
+
+    def _show_sample_detail(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):
             sample_id = str(sample_id)
         sid = EntityId(sample_id)
         self._sample_detail.show_sample(sid)
         self._transport.set_selection(str(sid), self._sample_detail.sample_name)
         self.navigate(SCREEN_SAMPLE_DETAIL)
+
+    def _return_from_sample_detail(self) -> None:
+        self.navigate(self._sample_detail_return_screen)
 
     def _open_metadata_editor(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):
@@ -990,10 +1009,16 @@ class MainWindow(QMainWindow):
                 self.navigate(SCREEN_SAMPLE_DETAIL)
             elif self._current_screen == SCREEN_CONFLICTS:
                 self.navigate(SCREEN_IMPORT_REVIEW)
+            elif self._current_screen == SCREEN_SAMPLE_DETAIL:
+                self._return_from_sample_detail()
             else:
                 self.navigate(SCREEN_LIBRARY)
 
     def _on_library_selection(self, sample_id: object, name: object) -> None:
+        sid = None if sample_id is None else str(sample_id)
+        self._transport.set_selection(sid, str(name) if name else "")
+
+    def _on_collection_selection(self, sample_id: object, name: object) -> None:
         sid = None if sample_id is None else str(sample_id)
         self._transport.set_selection(sid, str(name) if name else "")
 
@@ -1009,6 +1034,9 @@ class MainWindow(QMainWindow):
                         self._sample_detail.sample_name,
                     )
                     return
+        if self._current_screen == SCREEN_COLLECTION_DETAIL:
+            self._collection_detail.load_selection_into_playback()
+            return
         self._library.load_selection_into_playback()
 
 
