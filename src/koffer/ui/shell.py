@@ -467,9 +467,7 @@ class MainWindow(QMainWindow):
                     f"Collections / {self._collection_detail.collection_name or 'Collection'}"
                 ),
                 SCREEN_SOURCES: "Sources",
-                SCREEN_SOURCE_DETAIL: (
-                    f"Sources / {self._source_detail.source_name or 'Source'}"
-                ),
+                SCREEN_SOURCE_DETAIL: (f"Sources / {self._source_detail.source_name or 'Source'}"),
                 SCREEN_SAMPLE_DETAIL: f"Sample / {self._sample_detail.sample_name or 'Detail'}",
                 SCREEN_SAMPLE_PREPARATION: "Prepare",
                 SCREEN_METADATA_EDITOR: "Metadata",
