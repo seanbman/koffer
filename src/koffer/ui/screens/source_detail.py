@@ -274,8 +274,7 @@ class SourceDetailScreen(QWidget):
             for sample in detail.samples:
                 self._files.addItem(
                     QListWidgetItem(
-                        f"{sample.filename}\n"
-                        f"{sample.relative_path} · {sample.availability}"
+                        f"{sample.filename}\n{sample.relative_path} · {sample.availability}"
                     )
                 )
         else:
