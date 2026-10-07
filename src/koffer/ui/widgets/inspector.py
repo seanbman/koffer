@@ -125,18 +125,30 @@ class InspectorPanel(QWidget):
                 ]
             )
         )
+        self.set_waveform(envelope)
+
+    def set_waveform(
+        self,
+        envelope: PeakEnvelope | None,
+        *,
+        loading: bool = False,
+    ) -> None:
+        """Update only waveform state without disturbing selected Sample facts."""
         self._waveform.set_envelope(envelope)
+        if loading:
+            self._waveform_summary.setText("Waveform: loading…")
+            return
         if envelope is None:
             self._waveform_summary.setText("Waveform: unavailable")
-        else:
-            peak = max(abs(v) for v in (*envelope.mins, *envelope.maxs)) if envelope.mins else 0.0
-            self._waveform_summary.setText(
-                f"Waveform: {envelope.bucket_count} buckets · "
-                f"{envelope.sample_rate_hz} Hz · "
-                f"{envelope.channels} ch · "
-                f"peak {peak:.2f} · "
-                f"{envelope.duration_ms} ms"
-            )
+            return
+        peak = max(abs(v) for v in (*envelope.mins, *envelope.maxs)) if envelope.mins else 0.0
+        self._waveform_summary.setText(
+            f"Waveform: {envelope.bucket_count} buckets · "
+            f"{envelope.sample_rate_hz} Hz · "
+            f"{envelope.channels} ch · "
+            f"peak {peak:.2f} · "
+            f"{envelope.duration_ms} ms"
+        )
 
     def toggle_collapsed(self) -> None:
         """Toggle between the full and compact Inspector states."""
