@@ -109,7 +109,7 @@ def test_s05_shows_online_offline_enabled_from_repository(qtbot: object, tmp_pat
 def test_navigation_to_source_detail_shows_exclusions_and_jobs(
     qtbot: object, tmp_path: Path
 ) -> None:
-    from PySide6.QtWidgets import QLabel, QWidget
+    from PySide6.QtWidgets import QLabel, QListWidget, QWidget
 
     context = AppContext.open_temp(tmp_path / "detail")
     source_dir = tmp_path / "detail-pack"
@@ -138,15 +138,29 @@ def test_navigation_to_source_detail_shows_exclusions_and_jobs(
         status = window.findChild(QLabel, "sourceDetailStatus")
         path_label = window.findChild(QLabel, "sourceDetailPath")
         exclusions = window.findChild(QLabel, "sourceDetailExclusions")
-        jobs = window.findChild(QLabel, "sourceDetailJobs")
+        jobs = window.findChild(QListWidget, "sourceDetailJobs")
+        files = window.findChild(QListWidget, "sourceDetailFiles")
         assert status is not None
         assert path_label is not None
         assert exclusions is not None
         assert jobs is not None
+        assert files is not None
         assert "Online" in status.text() or "Scanning" in status.text()
         assert str(source_dir.resolve()) in path_label.text()
         assert "hidden" in exclusions.text() or "Trash" in exclusions.text()
-        assert "source_scan" in jobs.text() or "Current" in jobs.text()
+        assert any("source_scan" in jobs.item(i).text() for i in range(jobs.count()))
+        assert any("kick.wav" in files.item(i).text() for i in range(files.count()))
+
+        for object_name in (
+            "sourceRescanButton",
+            "sourcePauseButton",
+            "sourceCancelScanButton",
+            "sourceToggleEnabledButton",
+            "sourceOpenInFilesButton",
+            "sourceEditExclusionsButton",
+            "sourceRemoveButton",
+        ):
+            assert window.findChild(QPushButton, object_name) is not None
     finally:
         context.close()
 
