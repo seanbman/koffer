@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut, QShowEvent
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -142,7 +143,7 @@ class MainWindow(QMainWindow):
         center_layout.addWidget(self._stack, stretch=1)
 
         self._transport = TransportBar(context.playback_service)
-        self._transport.bind_selection_loader(self._load_playback_from_library)
+        self._transport.bind_selection_loader(self._load_playback_selection)
         center_layout.addWidget(self._transport)
 
         body_layout.addWidget(center, stretch=1)
@@ -154,7 +155,7 @@ class MainWindow(QMainWindow):
         self._collection_detail = CollectionDetailScreen(context.collection_service)
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context.source_service)
-        self._sample_detail = SampleDetailScreen(context.sample_service)
+        self._sample_detail = SampleDetailScreen(context)
         self._sample_preparation = SamplePreparationScreen(context.preparation_service)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
         self._suggestions = SuggestionsReviewScreen(context.analysis_service)
@@ -217,6 +218,8 @@ class MainWindow(QMainWindow):
         self._sample_detail.edit_metadata_requested.connect(self._open_metadata_editor)
         self._sample_detail.prepare_requested.connect(self._open_sample_preparation)
         self._sample_detail.find_similar_requested.connect(self._open_similar_sounds)
+        self._sample_detail.organize_requested.connect(self._open_organize_sample)
+        self._sample_detail.reveal_requested.connect(self._reveal_sample_path)
         self._similar_sounds.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._similar_sounds.preview_requested.connect(self._preview_similar_sample)
         self._sample_preparation.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
@@ -450,7 +453,7 @@ class MainWindow(QMainWindow):
                 SCREEN_COLLECTION_DETAIL: "Collection",
                 SCREEN_SOURCES: "Sources",
                 SCREEN_SOURCE_DETAIL: "Source",
-                SCREEN_SAMPLE_DETAIL: "Sample Detail",
+                SCREEN_SAMPLE_DETAIL: f"Sample / {self._sample_detail.sample_name or 'Detail'}",
                 SCREEN_SAMPLE_PREPARATION: "Prepare",
                 SCREEN_METADATA_EDITOR: "Metadata",
                 SCREEN_SUGGESTIONS: "Review",
@@ -812,7 +815,9 @@ class MainWindow(QMainWindow):
     def _open_sample_detail(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):
             sample_id = str(sample_id)
-        self._sample_detail.show_sample(EntityId(sample_id))
+        sid = EntityId(sample_id)
+        self._sample_detail.show_sample(sid)
+        self._transport.set_selection(str(sid), self._sample_detail.sample_name)
         self.navigate(SCREEN_SAMPLE_DETAIL)
 
     def _open_metadata_editor(self, sample_id: object) -> None:
@@ -842,6 +847,42 @@ class MainWindow(QMainWindow):
         self._context.playback_service.load(sid, path)
         detail = self._context.sample_service.get_detail(sid)
         self._transport.set_selection(str(sid), detail.sample.filename)
+
+    def _open_organize_sample(self, sample_id: object) -> None:
+        if not isinstance(sample_id, str):
+            sample_id = str(sample_id)
+        sid = EntityId(sample_id)
+        operation, accepted = QInputDialog.getItem(
+            self,
+            "Organize Sample",
+            "Operation:",
+            ["Reference", "Copy", "Move"],
+            0,
+            False,
+        )
+        if not accepted or not operation:
+            return
+        try:
+            if operation == "Reference":
+                plan = self._context.file_operation_service.plan_reference([sid])
+            else:
+                destination = self._directory_picker(self)
+                if destination is None:
+                    return
+                if operation == "Copy":
+                    plan = self._context.file_operation_service.plan_copy([sid], destination)
+                else:
+                    plan = self._context.file_operation_service.plan_move([sid], destination)
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not plan organize operation", str(exc))
+            return
+        self._import_review.show_plan(plan)
+        self.navigate(SCREEN_IMPORT_REVIEW)
+
+    def _reveal_sample_path(self, media_path: object) -> None:
+        path = Path(str(media_path))
+        target = path.parent if path.suffix else path
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
 
     def _open_render_export(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):
@@ -949,7 +990,18 @@ class MainWindow(QMainWindow):
         sid = None if sample_id is None else str(sample_id)
         self._transport.set_selection(sid, str(name) if name else "")
 
-    def _load_playback_from_library(self) -> None:
+    def _load_playback_selection(self) -> None:
+        if self._current_screen == SCREEN_SAMPLE_DETAIL:
+            sample_id = self._sample_detail.sample_id
+            if sample_id is not None:
+                path = self._context.resolve_sample_media_path(sample_id)
+                if path is not None and path.is_file():
+                    self._context.playback_service.load(sample_id, path)
+                    self._transport.set_selection(
+                        str(sample_id),
+                        self._sample_detail.sample_name,
+                    )
+                    return
         self._library.load_selection_into_playback()
 
 
