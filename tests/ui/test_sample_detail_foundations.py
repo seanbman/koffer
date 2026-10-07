@@ -7,13 +7,12 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QWidget
 
-from koffer.ui.widgets.waveform_view import WaveformView
-
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_malformed_wav, write_tagged_wav
 from koffer.domain import JobState
 from koffer.repositories import SampleRepository
 from koffer.ui.shell import MainWindow
+from koffer.ui.widgets.waveform_view import WaveformView
 
 
 def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Path) -> None:
