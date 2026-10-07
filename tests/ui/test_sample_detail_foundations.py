@@ -1,4 +1,4 @@
-"""Offscreen pytest-qt coverage for S07 Sample Detail foundations."""
+"""Offscreen pytest-qt coverage for the S07 Sample Detail contract."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QWidget
+
+from koffer.ui.widgets.waveform_view import WaveformView
 
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_malformed_wav, write_tagged_wav
@@ -62,11 +64,38 @@ def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Pat
         assert embedded_body is not None
         assert "Closed Hat" in embedded_body.text()
 
+        waveform = screen.findChild(WaveformView, "sampleDetailWaveform")
+        waveform_state = screen.findChild(QLabel, "sampleDetailWaveformState")
+        assert waveform is not None
+        assert waveform_state is not None
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: "loading" not in waveform_state.text().lower(),
+            timeout=5_000,
+        )
+        assert "unavailable" not in waveform_state.text().lower()
+
         edit = screen.findChild(QPushButton, "editMetadataButton")
         prepare = screen.findChild(QPushButton, "prepareButton")
+        add_collection = screen.findChild(QPushButton, "addToCollectionButton")
+        organize = screen.findChild(QPushButton, "organizeSampleButton")
+        reveal = screen.findChild(QPushButton, "revealSampleButton")
         assert edit is not None
         assert prepare is not None
+        assert add_collection is not None
+        assert organize is not None
+        assert reveal is not None
         assert edit is not prepare
+        assert reveal.isEnabled()
+        assert window.transport.selected_sample_id == str(sample.id)
+
+        collections = screen.findChild(QLabel, "sampleDetailCollections")
+        history = screen.findChild(QLabel, "sampleDetailHistory")
+        path = screen.findChild(QLabel, "sampleDetailPath")
+        assert collections is not None
+        assert history is not None
+        assert path is not None
+        assert "HISTORY" in history.text()
+        assert str(pack) in path.text()
     finally:
         context.close()
 
