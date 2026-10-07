@@ -12,6 +12,7 @@ from koffer.domain.enums import (
     ExclusionPatternType,
     JobState,
     JobType,
+    SampleAvailability,
     ScanMode,
     SourceStatus,
 )
@@ -177,6 +178,38 @@ class SourceService:
                 status=status,
                 updated_at=now,
             )
+        )
+
+    def preview_exclusion_rules(
+        self,
+        source_id: EntityId,
+        rules: list[ExclusionRule],
+    ) -> ExclusionPreview:
+        """Preview proposed exclusion rules without changing stored Source state."""
+        conn = self._factory.get_connection()
+        source = SourceRepository(conn).get(source_id)
+        if source is None:
+            raise NotFoundError(f"Source not found: {source_id}")
+        normalized = [
+            ExclusionRule(
+                id=rule.id if rule.id else new_entity_id(),
+                source_id=source_id,
+                pattern=rule.pattern,
+                pattern_type=rule.pattern_type,
+                enabled=rule.enabled,
+            )
+            for rule in rules
+        ]
+        matched, included = preview_exclusions(
+            Path(source.root_path),
+            normalized,
+            recursive=source.recursive,
+        )
+        return ExclusionPreview(
+            rules=tuple(normalized),
+            matched_relative_paths=matched,
+            excluded_count=len(matched),
+            included_supported_count=included,
         )
 
     def update_exclusions(
