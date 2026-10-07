@@ -57,6 +57,16 @@ class CollectionsScreen(QWidget):
         new_btn.clicked.connect(self._create_collection)
         header.addWidget(new_btn)
 
+        rename_btn = QPushButton("Rename")
+        rename_btn.setObjectName("renameCollectionButton")
+        rename_btn.clicked.connect(self._rename_selected)
+        header.addWidget(rename_btn)
+
+        duplicate_btn = QPushButton("Duplicate")
+        duplicate_btn.setObjectName("duplicateCollectionButton")
+        duplicate_btn.clicked.connect(self._duplicate_selected)
+        header.addWidget(duplicate_btn)
+
         delete_btn = QPushButton("Delete Collection")
         delete_btn.setObjectName("deleteCollectionButton")
         delete_btn.clicked.connect(self._delete_selected)
@@ -140,6 +150,57 @@ class CollectionsScreen(QWidget):
         self.refresh()
         self.collection_changed.emit()
         return collection.id
+
+    def _rename_selected(self) -> None:
+        collection_id = self.selected_collection_id()
+        if collection_id is None:
+            return
+        collection = self._collection_service.get(collection_id)
+        name, accepted = QInputDialog.getText(
+            self,
+            "Rename Collection",
+            "Name:",
+            text=collection.name,
+        )
+        if not accepted or not name.strip() or name.strip() == collection.name:
+            return
+        try:
+            self._collection_service.update(collection_id, name=name.strip())
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not rename Collection", str(exc))
+            return
+        self.refresh()
+        self.collection_changed.emit()
+
+    def _duplicate_selected(self) -> None:
+        collection_id = self.selected_collection_id()
+        if collection_id is None:
+            return
+        source = self._collection_service.get(collection_id)
+        name, accepted = QInputDialog.getText(
+            self,
+            "Duplicate Collection",
+            "New name:",
+            text=f"{source.name} Copy",
+        )
+        if not accepted or not name.strip():
+            return
+        try:
+            duplicate = self._collection_service.create(
+                name.strip(),
+                description=source.description,
+            )
+            self._collection_service.update(
+                duplicate.id,
+                color=source.color,
+                artwork_path=source.artwork_path,
+                sort_mode=source.sort_mode,
+            )
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not duplicate Collection", str(exc))
+            return
+        self.refresh()
+        self.collection_changed.emit()
 
     def _delete_selected(self) -> None:
         collection_id = self.selected_collection_id()
