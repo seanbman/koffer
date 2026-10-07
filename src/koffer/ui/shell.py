@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -19,10 +19,12 @@ from PySide6.QtWidgets import (
 )
 
 from koffer.app_context import AppContext
+from koffer.domain.enums import JobState
 from koffer.domain.errors import ApplicationError
 from koffer.domain.file_operations import FileOperationPlan
 from koffer.domain.ids import EntityId
 from koffer.domain.query import SavedSearch
+from koffer.jobs.progress import ProgressEvent
 from koffer.ui.picker import DirectoryPicker, native_directory_picker
 from koffer.ui.screens.about import AboutDiagnosticsScreen
 from koffer.ui.screens.activity import ActivityCenterScreen
@@ -75,6 +77,13 @@ SCREEN_MAINTENANCE = "S20"
 SCREEN_ABOUT = "S21"
 
 
+class _JobProgressBridge(QObject):
+    progress = Signal(object)
+
+    def publish(self, event: ProgressEvent) -> None:
+        self.progress.emit(event)
+
+
 class MainWindow(QMainWindow):
     """Composable main window; UI never owns SQL — services via AppContext."""
 
@@ -110,6 +119,9 @@ class MainWindow(QMainWindow):
 
         self._top_bar = self._build_top_bar()
         layout.addWidget(self._top_bar)
+        self._job_progress_bridge = _JobProgressBridge(self)
+        self._job_progress_bridge.progress.connect(self._on_job_progress)
+        context.scheduler.add_progress_listener(self._job_progress_bridge.publish)
 
         body = QWidget()
         body.setObjectName("kofferBody")
@@ -220,6 +232,7 @@ class MainWindow(QMainWindow):
 
         self._build_menus()
         self._refresh_saved_search_nav()
+        self._refresh_job_status()
         self._install_global_shortcuts()
 
         self.setCentralWidget(shell)
@@ -243,11 +256,59 @@ class MainWindow(QMainWindow):
         row.addWidget(self._workspace_label)
         row.addStretch(1)
 
-        status = QLabel("● LOCAL")
+        self._job_status = QPushButton("IDLE")
+        self._job_status.setObjectName("topBarActivityButton")
+        self._job_status.setToolTip("Open Activity Center")
+        self._job_status.clicked.connect(lambda: self.navigate(SCREEN_ACTIVITY))
+        row.addWidget(self._job_status)
+
+        status = QLabel("LOCAL")
         status.setObjectName("topBarStatus")
         status.setToolTip("Koffer core library features work locally and offline.")
         row.addWidget(status)
         return bar
+
+    @Slot(object)
+    def _on_job_progress(self, event: object) -> None:
+        if not isinstance(event, ProgressEvent):
+            return
+        active_states = {
+            JobState.QUEUED,
+            JobState.RUNNING,
+            JobState.CANCEL_REQUESTED,
+        }
+        if event.state in active_states:
+            stage = (event.stage or "working").replace("_", " ").upper()
+            if event.total is not None and event.total > 0:
+                self._job_status.setText(f"{stage} {event.current}/{event.total}")
+            else:
+                self._job_status.setText(stage)
+        else:
+            self._refresh_job_status()
+        self._activity.refresh()
+
+    def _refresh_job_status(self) -> None:
+        jobs = self._context.scheduler.list()
+        active_states = {
+            JobState.QUEUED,
+            JobState.RUNNING,
+            JobState.CANCEL_REQUESTED,
+        }
+        attention_states = {
+            JobState.FAILED,
+            JobState.COMPLETED_WITH_ERRORS,
+            JobState.INTERRUPTED,
+        }
+        active = sum(job.state in active_states for job in jobs)
+        attention = sum(job.state in attention_states for job in jobs)
+        if attention:
+            noun = "ISSUE" if attention == 1 else "ISSUES"
+            self._job_status.setText(f"{attention} {noun}")
+        elif active:
+            noun = "JOB" if active == 1 else "JOBS"
+            self._job_status.setText(f"{active} {noun}")
+        else:
+            self._job_status.setText("IDLE")
 
     def _build_menus(self) -> None:
         menu_bar = self.menuBar()
@@ -486,6 +547,7 @@ class MainWindow(QMainWindow):
                 self._library.splitter.setSizes(sizes)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 — Qt API
+        self._context.scheduler.remove_progress_listener(self._job_progress_bridge.publish)
         self.persist_geometry()
         super().closeEvent(event)
 
