@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from dataclasses import replace
 from pathlib import Path
 
 from koffer.audio.render import (
+    FfmpegError,
     build_render_command,
     ensure_ffmpeg_available,
     resolve_ffmpeg,
+    run_ffmpeg_render,
 )
 from koffer.domain.enums import ConflictAction, JobType
-from koffer.domain.errors import NotFoundError, PathUnavailableError, ValidationError
+from koffer.domain.errors import (
+    NotFoundError,
+    PathUnavailableError,
+    UnsupportedOperationError,
+    ValidationError,
+)
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.preparation import (
     PreparationRecipe,
@@ -101,6 +111,44 @@ class PreparationService:
             recipe=recipe,
             quality="approximate",
         )
+
+    def render_preview_file(
+        self,
+        sample_id: EntityId,
+        recipe: PreparationRecipe,
+        preview_dir: Path,
+    ) -> Path:
+        """Render an exact temporary WAV preview without mutating source audio."""
+        recipe.validate()
+        media = self.resolve_media_path(sample_id)
+        if media is None or not media.is_file():
+            raise PathUnavailableError(f"Sample media unavailable: {sample_id}")
+
+        preview_recipe = replace(recipe, output_format="wav")
+        digest = hashlib.sha256(
+            json.dumps(preview_recipe.to_json(), sort_keys=True).encode("utf-8")
+        ).hexdigest()[:16]
+        destination = preview_dir / f"{sample_id}-{digest}.wav"
+        if destination.is_file() and destination.stat().st_size > 0:
+            return destination
+
+        source_rate: int | None = None
+        tech = TechnicalMetadataRepository(self._factory.get_connection()).get(sample_id)
+        if tech is not None and tech.sample_rate_hz > 0:
+            source_rate = tech.sample_rate_hz
+
+        try:
+            return run_ffmpeg_render(
+                media,
+                destination,
+                preview_recipe,
+                source_sample_rate_hz=source_rate,
+                timeout=60.0,
+            )
+        except FfmpegError as exc:
+            raise UnsupportedOperationError(
+                f"Could not render preparation preview: {exc.message}"
+            ) from exc
 
     def plan_render(
         self,
