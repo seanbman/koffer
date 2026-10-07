@@ -186,15 +186,9 @@ class CollectionsScreen(QWidget):
         if not accepted or not name.strip():
             return
         try:
-            duplicate = self._collection_service.create(
-                name.strip(),
-                description=source.description,
-            )
-            self._collection_service.update(
-                duplicate.id,
-                color=source.color,
-                artwork_path=source.artwork_path,
-                sort_mode=source.sort_mode,
+            self._collection_service.duplicate(
+                collection_id,
+                name=name.strip(),
             )
         except ApplicationError as exc:
             QMessageBox.warning(self, "Could not duplicate Collection", str(exc))
