@@ -115,6 +115,29 @@ class CollectionService:
         repo.update(updated)
         return updated
 
+    def duplicate(
+        self,
+        collection_id: EntityId,
+        *,
+        name: str | None = None,
+    ) -> Collection:
+        """Duplicate Collection metadata and membership links, never audio files."""
+        source = self.get(collection_id)
+        duplicate_name = (name or f"{source.name} Copy").strip()
+        if not duplicate_name:
+            raise ValidationError("Collection name is required")
+        duplicate = self.create(duplicate_name, description=source.description)
+        duplicate = self.update(
+            duplicate.id,
+            color=source.color,
+            artwork_path=source.artwork_path,
+            sort_mode=source.sort_mode,
+        )
+        sample_ids = self.list_sample_ids(collection_id)
+        if sample_ids:
+            self.add_samples(duplicate.id, sample_ids)
+        return self.get(duplicate.id)
+
     def delete(self, collection_id: EntityId) -> None:
         """Delete Collection membership rows only. Samples and audio files remain."""
         conn = self._factory.get_connection()
