@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [dev]
 
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   qa:
     runs-on: ubuntu-latest
@@ -18,7 +22,20 @@ jobs:
       - name: Install Linux Qt runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y             libegl1             libgl1             libopengl0             libpulse0             libxkbcommon0             libxkbcommon-x11-0             libxcb-cursor0             libxcb-icccm4             libxcb-image0             libxcb-keysyms1             libxcb-render-util0             libxcb-shape0             libxcb-xkb1
+          sudo apt-get install -y \
+            libegl1 \
+            libgl1 \
+            libopengl0 \
+            libpulse0 \
+            libxkbcommon0 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xkb1
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
