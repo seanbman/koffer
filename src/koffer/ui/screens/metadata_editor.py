@@ -119,16 +119,19 @@ class MetadataEditorScreen(QWidget):
         artwork_actions = QHBoxLayout()
         self._artwork_replace = QPushButton("Add / Replace")
         self._artwork_replace.setObjectName("metadataEditorArtworkReplaceButton")
+        self._artwork_replace.setEnabled(False)
         self._artwork_replace.clicked.connect(self._choose_artwork)
         artwork_actions.addWidget(self._artwork_replace)
 
         self._artwork_remove = QPushButton("Remove")
         self._artwork_remove.setObjectName("metadataEditorArtworkRemoveButton")
+        self._artwork_remove.setEnabled(False)
         self._artwork_remove.clicked.connect(self._mark_remove_artwork)
         artwork_actions.addWidget(self._artwork_remove)
 
         self._artwork_keep = QPushButton("Keep Current")
         self._artwork_keep.setObjectName("metadataEditorArtworkKeepButton")
+        self._artwork_keep.setEnabled(False)
         self._artwork_keep.clicked.connect(self._keep_artwork)
         artwork_actions.addWidget(self._artwork_keep)
         artwork_actions.addStretch(1)
@@ -274,7 +277,9 @@ class MetadataEditorScreen(QWidget):
 
         if state.artwork_supported:
             self._artwork_replace.setEnabled(True)
-            self._artwork_remove.setEnabled(state.artwork_present or self._artwork_payload is not None)
+            self._artwork_remove.setEnabled(
+                state.artwork_present or self._artwork_payload is not None
+            )
             self._artwork_keep.setEnabled(self._artwork_action is not ArtworkAction.KEEP)
             self._artwork_replace.setText(
                 "Replace Artwork" if state.artwork_present else "Add Artwork"
@@ -377,6 +382,13 @@ class MetadataEditorScreen(QWidget):
         return True
 
     def _mark_remove_artwork(self) -> None:
+        if (
+            self._state is not None
+            and not self._state.artwork_present
+            and self._artwork_payload is not None
+        ):
+            self._keep_artwork()
+            return
         self._artwork_action = ArtworkAction.REMOVE
         self._artwork_payload = None
         self._artwork_path = None
