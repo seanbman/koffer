@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLineEdit, QTableView
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_sine_wav
 from koffer.domain import (
+    EntityId,
     Sample,
     SampleAvailability,
     Source,
@@ -214,5 +215,32 @@ def test_s01_search_text_is_debounced(qtbot: object, tmp_path: Path) -> None:
             timeout=1000,
         )
         assert window.library.model.rowCount() == 1
+    finally:
+        context.close()
+
+
+def test_preview_history_drives_recents_view(qtbot: object, tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "recents-ui")
+    try:
+        sample_id = _seed_library(context, tmp_path, name="recent-hit.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+        window.library.table.selectRow(0)
+        window.library.load_selection_into_playback()
+
+        # AppContext records history when playback enters PLAYING.
+        context.playback_service.state_changed.emit("playing")
+
+        sample = SampleRepository(context.connection_factory.get_connection()).get(
+            EntityId(sample_id)
+        )
+        assert sample is not None
+        assert sample.last_previewed_at is not None
+
+        window.library.show_recents()
+        assert window.library.view_title == "Recents"
+        assert window.library.model.rowCount() == 1
+        assert window.library.model.data(window.library.model.index(0, 0)) == "recent-hit.wav"
     finally:
         context.close()
