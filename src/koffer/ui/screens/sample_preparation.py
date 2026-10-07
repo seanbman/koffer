@@ -202,12 +202,14 @@ class SamplePreparationScreen(QWidget):
         self._fade_in.setObjectName("samplePreparationFadeIn")
         self._fade_in.setRange(0, 60_000)
         self._fade_in.setSuffix(" ms")
+        self._fade_in.valueChanged.connect(self._invalidate_preview)
         form.addRow("Fade in", self._fade_in)
 
         self._fade_out = QSpinBox()
         self._fade_out.setObjectName("samplePreparationFadeOut")
         self._fade_out.setRange(0, 60_000)
         self._fade_out.setSuffix(" ms")
+        self._fade_out.valueChanged.connect(self._invalidate_preview)
         form.addRow("Fade out", self._fade_out)
 
         self._gain = QDoubleSpinBox()
@@ -215,10 +217,12 @@ class SamplePreparationScreen(QWidget):
         self._gain.setRange(-60.0, 24.0)
         self._gain.setDecimals(1)
         self._gain.setSuffix(" dB")
+        self._gain.valueChanged.connect(self._invalidate_preview)
         form.addRow("Gain", self._gain)
 
         self._normalize = QCheckBox("Normalize")
         self._normalize.setObjectName("samplePreparationNormalize")
+        self._normalize.toggled.connect(self._invalidate_preview)
         form.addRow("Normalize", self._normalize)
 
         self._normalize_peak = QDoubleSpinBox()
@@ -229,6 +233,7 @@ class SamplePreparationScreen(QWidget):
         self._normalize_peak.setValue(-1.0)
         self._normalize_peak.setSuffix(" dBFS")
         self._normalize_peak.setEnabled(False)
+        self._normalize_peak.valueChanged.connect(self._invalidate_preview)
         self._normalize.toggled.connect(self._normalize_peak.setEnabled)
         form.addRow("Normalize peak", self._normalize_peak)
 
@@ -237,12 +242,14 @@ class SamplePreparationScreen(QWidget):
         self._transpose.setRange(-24.0, 24.0)
         self._transpose.setDecimals(1)
         self._transpose.setSuffix(" st")
+        self._transpose.valueChanged.connect(self._invalidate_preview)
         form.addRow("Transpose", self._transpose)
 
         self._fine_cents = QSpinBox()
         self._fine_cents.setObjectName("samplePreparationFineCents")
         self._fine_cents.setRange(-100, 100)
         self._fine_cents.setSuffix(" cents")
+        self._fine_cents.valueChanged.connect(self._invalidate_preview)
         form.addRow("Fine pitch", self._fine_cents)
 
         self._stretch = QDoubleSpinBox()
@@ -251,16 +258,19 @@ class SamplePreparationScreen(QWidget):
         self._stretch.setDecimals(3)
         self._stretch.setSingleStep(0.05)
         self._stretch.setValue(1.0)
+        self._stretch.valueChanged.connect(self._invalidate_preview)
         form.addRow("Time stretch", self._stretch)
 
         self._reverse = QCheckBox("Reverse")
         self._reverse.setObjectName("samplePreparationReverse")
+        self._reverse.toggled.connect(self._invalidate_preview)
         form.addRow("Reverse", self._reverse)
 
         self._channels = QComboBox()
         self._channels.setObjectName("samplePreparationChannels")
         for mode in ("source", "mono", "stereo"):
             self._channels.addItem(mode, mode)
+        self._channels.currentIndexChanged.connect(self._invalidate_preview)
         form.addRow("Channels", self._channels)
 
         self._sample_rate = QComboBox()
@@ -268,6 +278,7 @@ class SamplePreparationScreen(QWidget):
         self._sample_rate.addItem("source", "source")
         for rate in (44_100, 48_000, 96_000):
             self._sample_rate.addItem(str(rate), rate)
+        self._sample_rate.currentIndexChanged.connect(self._invalidate_preview)
         form.addRow("Sample rate", self._sample_rate)
 
         self._bit_depth = QComboBox()
@@ -275,12 +286,14 @@ class SamplePreparationScreen(QWidget):
         self._bit_depth.addItem("source", "source")
         for depth in (16, 24, 32):
             self._bit_depth.addItem(str(depth), depth)
+        self._bit_depth.currentIndexChanged.connect(self._invalidate_preview)
         form.addRow("Bit depth", self._bit_depth)
 
         self._output_format = QComboBox()
         self._output_format.setObjectName("samplePreparationOutputFormat")
         for output_format in ("wav", "flac", "ogg", "mp3"):
             self._output_format.addItem(output_format, output_format)
+        self._output_format.currentIndexChanged.connect(self._invalidate_preview)
         form.addRow("Output format", self._output_format)
 
         scroll.setWidget(body)
@@ -391,8 +404,11 @@ class SamplePreparationScreen(QWidget):
         if index >= 0:
             combo.setCurrentIndex(index)
 
-    def _on_controls_changed(self) -> None:
+    def _invalidate_preview(self, *_args: object) -> None:
         self._preview_path = None
+
+    def _on_controls_changed(self) -> None:
+        self._invalidate_preview()
         end = self._trim_end.value()
         end_label = "end" if end == 0 else f"{end} ms"
         self._trim_state.setText(f"Trim: {self._trim_start.value()} ms → {end_label}")
@@ -458,9 +474,7 @@ class SamplePreparationScreen(QWidget):
             self._preview_note.setText(str(exc))
             return
         self._preview_btn.setEnabled(False)
-        self._preview_note.setText(
-            f"Rendering {handle.quality} recipe preview off-thread…"
-        )
+        self._preview_note.setText("Rendering recipe preview off-thread…")
         preview_dir = self._context.paths.cache_dir / "previews"
         task = _PreviewTask(
             self._service,
