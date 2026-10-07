@@ -253,12 +253,55 @@ class JobScheduler:
                 future.cancel()
 
     def pause(self, job_id: EntityId) -> None:
-        del job_id
-        raise UnsupportedOperationError("pause is not supported for this Job type")
+        """Request a cooperative pause for supported Job types."""
+        conn = self._factory.get_connection()
+        repo = JobRepository(conn)
+        job = repo.get(job_id)
+        if job is None:
+            raise NotFoundError(f"Job not found: {job_id}")
+        if job.type is not JobType.SOURCE_SCAN:
+            raise UnsupportedOperationError("pause is not supported for this Job type")
+        if job.state in _TERMINAL_STATES or job.state in {
+            JobState.PAUSE_REQUESTED,
+            JobState.PAUSED,
+        }:
+            return
+        updated = replace(job, state=JobState.PAUSE_REQUESTED)
+        repo.update(updated)
+        self._progress.publish(
+            ProgressEvent(
+                job_id=job_id,
+                state=JobState.PAUSE_REQUESTED,
+                stage=job.stage,
+                current=job.progress_current,
+                total=job.progress_total,
+            ),
+            force=True,
+        )
 
     def resume(self, job_id: EntityId) -> None:
-        del job_id
-        raise UnsupportedOperationError("resume is not supported for this Job type")
+        """Resume a cooperatively paused supported Job."""
+        conn = self._factory.get_connection()
+        repo = JobRepository(conn)
+        job = repo.get(job_id)
+        if job is None:
+            raise NotFoundError(f"Job not found: {job_id}")
+        if job.type is not JobType.SOURCE_SCAN:
+            raise UnsupportedOperationError("resume is not supported for this Job type")
+        if job.state not in {JobState.PAUSE_REQUESTED, JobState.PAUSED}:
+            return
+        updated = replace(job, state=JobState.RUNNING)
+        repo.update(updated)
+        self._progress.publish(
+            ProgressEvent(
+                job_id=job_id,
+                state=JobState.RUNNING,
+                stage=job.stage,
+                current=job.progress_current,
+                total=job.progress_total,
+            ),
+            force=True,
+        )
 
     def wait(self, job_id: EntityId, *, timeout: float | None = 30.0) -> Job:
         """Block until the Job finishes or ``timeout`` elapses (tests/helpers)."""
