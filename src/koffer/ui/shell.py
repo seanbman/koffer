@@ -420,6 +420,7 @@ class MainWindow(QMainWindow):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self._saved_search_buttons.clear()
 
         saved_searches = self._context.search_service.list_saved_searches()
         if not saved_searches:
@@ -436,6 +437,7 @@ class MainWindow(QMainWindow):
                 lambda _checked=False, item=saved: self._open_saved_search(item),
             )
             button.setProperty("savedSearchId", str(saved.id))
+            self._saved_search_buttons.append(button)
             self._saved_search_layout.addWidget(button)
 
     def _update_top_bar(self) -> None:
@@ -711,6 +713,7 @@ class MainWindow(QMainWindow):
         saved_container = QWidget()
         saved_container.setObjectName("savedSearchNav")
         self._saved_search_layout = QVBoxLayout(saved_container)
+        self._saved_search_buttons: list[QPushButton] = []
         self._saved_search_layout.setContentsMargins(0, 0, 0, 0)
         self._saved_search_layout.setSpacing(4)
         column.addWidget(saved_container)
@@ -764,11 +767,7 @@ class MainWindow(QMainWindow):
             if library_active and self._library_nav_mode.startswith("saved:")
             else ""
         )
-        saved_buttons: list[QPushButton] = self._nav.findChildren(
-            QPushButton,
-            "savedSearchNavButton",
-        )
-        for saved_button in saved_buttons:
+        for saved_button in self._saved_search_buttons:
             saved_button.setChecked(saved_button.property("savedSearchId") == saved_id)
 
     def _sync_initial_route(self) -> None:
