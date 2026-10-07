@@ -236,9 +236,7 @@ def _apply_discovery(
                 replace(
                     current_source,
                     status=(
-                        SourceStatus.ONLINE
-                        if current_source.enabled
-                        else SourceStatus.DISABLED
+                        SourceStatus.ONLINE if current_source.enabled else SourceStatus.DISABLED
                     ),
                     updated_at=utc_now_iso(),
                 )
