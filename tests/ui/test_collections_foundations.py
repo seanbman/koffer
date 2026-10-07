@@ -138,3 +138,31 @@ def test_nav_collections_button_and_detail_roundtrip(qtbot: object, tmp_path: Pa
         assert context.collection_service.get(collection.id).name == "Nav Collection"
     finally:
         context.close()
+
+
+def test_collection_duplicate_copies_membership_not_audio(tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "duplicate-collection")
+    pack = tmp_path / "duplicate-pack"
+    audio = _write_audio(pack, "snare.wav", b"RIFF-SNARE")
+    before = audio.read_bytes()
+
+    try:
+        source = context.source_service.add_source(pack)
+        job_id = context.source_service.scan(source.id)
+        assert context.scheduler.wait(job_id, timeout=30.0).state is JobState.COMPLETED
+        sample = SampleRepository(context.connection_factory.get_connection()).list_by_source(
+            source.id
+        )[0]
+        original = context.collection_service.create(
+            "Original",
+            description="Membership should be cloned without copying audio.",
+        )
+        context.collection_service.add_samples(original.id, [sample.id])
+
+        duplicate = context.collection_service.duplicate(original.id, name="Original Copy")
+        assert duplicate.name == "Original Copy"
+        assert duplicate.description == original.description
+        assert context.collection_service.list_sample_ids(duplicate.id) == [sample.id]
+        assert audio.read_bytes() == before
+    finally:
+        context.close()
