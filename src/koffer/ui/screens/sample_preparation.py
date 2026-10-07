@@ -1,10 +1,14 @@
-"""S08 Sample Preparation foundations (docs/12, docs/15). Non-destructive recipes only."""
+"""S08 Sample Preparation: non-destructive recipe editing and exact preview."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from pathlib import Path
+from typing import cast
+
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -16,11 +20,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from koffer.app_context import AppContext
+from koffer.audio.waveform import PeakEnvelope, WaveformCache
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.domain.preparation import (
+    ChannelMode,
     NormalizeSpec,
+    OutputFormat,
     PreparationRecipe,
+    SourceOrInt,
     TrimSpec,
 )
 from koffer.services.preparation import PreparationService
@@ -28,22 +37,93 @@ from koffer.ui.tokens import CLAY, GREEN, MUTED
 from koffer.ui.widgets.waveform_view import WaveformView
 
 
+class _WaveformSignals(QObject):
+    completed = Signal(str, object)
+
+
+class _WaveformTask(QRunnable):
+    def __init__(
+        self,
+        cache: WaveformCache,
+        sample_id: EntityId,
+        media_path: Path,
+        signals: _WaveformSignals,
+    ) -> None:
+        super().__init__()
+        self._cache = cache
+        self._sample_id = sample_id
+        self._media_path = media_path
+        self._signals = signals
+
+    @Slot()
+    def run(self) -> None:
+        envelope: PeakEnvelope | None
+        try:
+            envelope = self._cache.get_or_build(self._sample_id, self._media_path)
+        except Exception:
+            envelope = None
+        self._signals.completed.emit(str(self._sample_id), envelope)
+
+
+class _PreviewSignals(QObject):
+    completed = Signal(str, object, object)
+
+
+class _PreviewTask(QRunnable):
+    def __init__(
+        self,
+        service: PreparationService,
+        sample_id: EntityId,
+        recipe: PreparationRecipe,
+        preview_dir: Path,
+        signals: _PreviewSignals,
+    ) -> None:
+        super().__init__()
+        self._service = service
+        self._sample_id = sample_id
+        self._recipe = recipe
+        self._preview_dir = preview_dir
+        self._signals = signals
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            path = self._service.render_preview_file(
+                self._sample_id,
+                self._recipe,
+                self._preview_dir,
+            )
+        except ApplicationError as exc:
+            self._signals.completed.emit(str(self._sample_id), None, str(exc))
+            return
+        except Exception as exc:
+            self._signals.completed.emit(str(self._sample_id), None, str(exc))
+            return
+        self._signals.completed.emit(str(self._sample_id), path, None)
+
+
 class SamplePreparationScreen(QWidget):
-    """S08: edit non-destructive recipe; never writes source audio on adjust/save/reset."""
+    """Edit a recipe without changing source audio; preview is rendered off-thread."""
 
     back_requested = Signal()
     export_requested = Signal(str)
+    preview_ready = Signal(str, str)
     recipe_saved = Signal()
 
     def __init__(
         self,
-        preparation_service: PreparationService,
+        context: AppContext,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._service = preparation_service
+        self._context = context
+        self._service = context.preparation_service
         self._sample_id: EntityId | None = None
         self._source_path: str = ""
+        self._waveform_signals = _WaveformSignals(self)
+        self._waveform_signals.completed.connect(self._on_waveform_ready)
+        self._preview_signals = _PreviewSignals(self)
+        self._preview_signals.completed.connect(self._on_preview_ready)
         self.setObjectName("samplePreparationScreen")
 
         root = QVBoxLayout(self)
@@ -73,15 +153,22 @@ class SamplePreparationScreen(QWidget):
 
         self._waveform = WaveformView()
         self._waveform.setObjectName("samplePreparationWaveform")
-        self._waveform.setMinimumHeight(140)
-        self._waveform.setMaximumHeight(180)
+        self._waveform.setMinimumHeight(180)
+        self._waveform.setMaximumHeight(250)
         root.addWidget(self._waveform)
+
+        self._waveform_state = QLabel("Waveform: —")
+        self._waveform_state.setObjectName("samplePreparationWaveformState")
+        self._waveform_state.setStyleSheet(f"color: {MUTED};")
+        root.addWidget(self._waveform_state)
 
         self._trim_state = QLabel("Trim: 0 ms → end")
         self._trim_state.setObjectName("samplePreparationTrimState")
         root.addWidget(self._trim_state)
 
-        self._preview_note = QLabel("")
+        self._preview_note = QLabel(
+            "Preview renders the current recipe to a temporary file; the original remains untouched."
+        )
         self._preview_note.setObjectName("samplePreparationPreviewNote")
         self._preview_note.setWordWrap(True)
         self._preview_note.setStyleSheet(f"color: {MUTED};")
@@ -133,12 +220,29 @@ class SamplePreparationScreen(QWidget):
         self._normalize.setObjectName("samplePreparationNormalize")
         form.addRow("Normalize", self._normalize)
 
+        self._normalize_peak = QDoubleSpinBox()
+        self._normalize_peak.setObjectName("samplePreparationNormalizePeak")
+        self._normalize_peak.setRange(-12.0, 0.0)
+        self._normalize_peak.setDecimals(1)
+        self._normalize_peak.setSingleStep(0.5)
+        self._normalize_peak.setValue(-1.0)
+        self._normalize_peak.setSuffix(" dBFS")
+        self._normalize_peak.setEnabled(False)
+        self._normalize.toggled.connect(self._normalize_peak.setEnabled)
+        form.addRow("Normalize peak", self._normalize_peak)
+
         self._transpose = QDoubleSpinBox()
         self._transpose.setObjectName("samplePreparationTranspose")
         self._transpose.setRange(-24.0, 24.0)
         self._transpose.setDecimals(1)
         self._transpose.setSuffix(" st")
         form.addRow("Transpose", self._transpose)
+
+        self._fine_cents = QSpinBox()
+        self._fine_cents.setObjectName("samplePreparationFineCents")
+        self._fine_cents.setRange(-100, 100)
+        self._fine_cents.setSuffix(" cents")
+        form.addRow("Fine pitch", self._fine_cents)
 
         self._stretch = QDoubleSpinBox()
         self._stretch.setObjectName("samplePreparationStretch")
@@ -151,6 +255,32 @@ class SamplePreparationScreen(QWidget):
         self._reverse = QCheckBox("Reverse")
         self._reverse.setObjectName("samplePreparationReverse")
         form.addRow("Reverse", self._reverse)
+
+        self._channels = QComboBox()
+        self._channels.setObjectName("samplePreparationChannels")
+        for mode in ("source", "mono", "stereo"):
+            self._channels.addItem(mode, mode)
+        form.addRow("Channels", self._channels)
+
+        self._sample_rate = QComboBox()
+        self._sample_rate.setObjectName("samplePreparationSampleRate")
+        self._sample_rate.addItem("source", "source")
+        for rate in (44_100, 48_000, 96_000):
+            self._sample_rate.addItem(str(rate), rate)
+        form.addRow("Sample rate", self._sample_rate)
+
+        self._bit_depth = QComboBox()
+        self._bit_depth.setObjectName("samplePreparationBitDepth")
+        self._bit_depth.addItem("source", "source")
+        for depth in (16, 24, 32):
+            self._bit_depth.addItem(str(depth), depth)
+        form.addRow("Bit depth", self._bit_depth)
+
+        self._output_format = QComboBox()
+        self._output_format.setObjectName("samplePreparationOutputFormat")
+        for output_format in ("wav", "flac", "ogg", "mp3"):
+            self._output_format.addItem(output_format, output_format)
+        form.addRow("Output format", self._output_format)
 
         scroll.setWidget(body)
         root.addWidget(scroll, stretch=1)
@@ -166,10 +296,10 @@ class SamplePreparationScreen(QWidget):
         save.clicked.connect(self._save_recipe)
         actions.addWidget(save)
 
-        preview = QPushButton("Preview")
-        preview.setObjectName("samplePreparationPreviewButton")
-        preview.clicked.connect(self._preview_recipe)
-        actions.addWidget(preview)
+        self._preview_btn = QPushButton("Preview Recipe")
+        self._preview_btn.setObjectName("samplePreparationPreviewButton")
+        self._preview_btn.clicked.connect(self._preview_recipe)
+        actions.addWidget(self._preview_btn)
 
         export = QPushButton("Export / Render…")
         export.setObjectName("samplePreparationExportButton")
@@ -191,7 +321,7 @@ class SamplePreparationScreen(QWidget):
         recipe = self._service.get_recipe(sample_id)
         self._apply_recipe_to_controls(recipe)
         self._status.setText("Loaded non-destructive recipe. Adjustments do not write the source.")
-        self._preview_recipe()
+        self._load_waveform(media)
 
     def refresh(self) -> None:
         if self._sample_id is not None:
@@ -199,6 +329,12 @@ class SamplePreparationScreen(QWidget):
 
     def current_recipe(self) -> PreparationRecipe:
         end_ms = self._trim_end.value()
+        sample_rate_data = self._sample_rate.currentData()
+        bit_depth_data = self._bit_depth.currentData()
+        sample_rate: SourceOrInt = (
+            "source" if sample_rate_data == "source" else int(sample_rate_data)
+        )
+        bit_depth: SourceOrInt = "source" if bit_depth_data == "source" else int(bit_depth_data)
         return PreparationRecipe(
             trim=TrimSpec(
                 start_ms=self._trim_start.value(),
@@ -207,10 +343,18 @@ class SamplePreparationScreen(QWidget):
             fade_in_ms=self._fade_in.value(),
             fade_out_ms=self._fade_out.value(),
             gain_db=float(self._gain.value()),
-            normalize=NormalizeSpec(enabled=self._normalize.isChecked()),
+            normalize=NormalizeSpec(
+                enabled=self._normalize.isChecked(),
+                target_peak_dbfs=float(self._normalize_peak.value()),
+            ),
             transpose_semitones=float(self._transpose.value()),
+            fine_cents=self._fine_cents.value(),
             time_stretch_ratio=float(self._stretch.value()),
             reverse=self._reverse.isChecked(),
+            channels=cast(ChannelMode, str(self._channels.currentData())),
+            sample_rate_hz=sample_rate,
+            bit_depth=bit_depth,
+            output_format=cast(OutputFormat, self._output_format.currentText()),
         )
 
     def _apply_recipe_to_controls(self, recipe: PreparationRecipe) -> None:
@@ -220,15 +364,55 @@ class SamplePreparationScreen(QWidget):
         self._fade_out.setValue(recipe.fade_out_ms)
         self._gain.setValue(recipe.gain_db)
         self._normalize.setChecked(recipe.normalize.enabled)
+        self._normalize_peak.setValue(recipe.normalize.target_peak_dbfs)
         self._transpose.setValue(recipe.transpose_semitones)
+        self._fine_cents.setValue(recipe.fine_cents)
         self._stretch.setValue(recipe.time_stretch_ratio)
         self._reverse.setChecked(recipe.reverse)
+        self._set_combo_data(self._channels, recipe.channels)
+        self._set_combo_data(self._sample_rate, recipe.sample_rate_hz)
+        self._set_combo_data(self._bit_depth, recipe.bit_depth)
+        self._set_combo_data(self._output_format, recipe.output_format)
         self._on_controls_changed()
+
+    @staticmethod
+    def _set_combo_data(combo: QComboBox, value: object) -> None:
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
 
     def _on_controls_changed(self) -> None:
         end = self._trim_end.value()
         end_label = "end" if end == 0 else f"{end} ms"
         self._trim_state.setText(f"Trim: {self._trim_start.value()} ms → {end_label}")
+
+    def _load_waveform(self, media: Path | None) -> None:
+        self._waveform.set_envelope(None)
+        if self._sample_id is None or media is None or not media.is_file():
+            self._waveform_state.setText("Waveform: unavailable")
+            return
+        self._waveform_state.setText("Waveform: loading…")
+        task = _WaveformTask(
+            self._context.waveform_cache,
+            self._sample_id,
+            media,
+            self._waveform_signals,
+        )
+        QThreadPool.globalInstance().start(task)
+
+    @Slot(str, object)
+    def _on_waveform_ready(self, sample_id: str, envelope: object) -> None:
+        if self._sample_id is None or sample_id != str(self._sample_id):
+            return
+        resolved = envelope if isinstance(envelope, PeakEnvelope) else None
+        self._waveform.set_envelope(resolved)
+        if resolved is None:
+            self._waveform_state.setText("Waveform: unavailable")
+            return
+        self._waveform_state.setText(
+            f"Waveform: {resolved.duration_ms} ms · {resolved.sample_rate_hz} Hz · "
+            f"{resolved.channels} ch"
+        )
 
     def _save_recipe(self) -> None:
         if self._sample_id is None:
@@ -256,17 +440,45 @@ class SamplePreparationScreen(QWidget):
     def _preview_recipe(self) -> None:
         if self._sample_id is None:
             return
+        recipe = self.current_recipe()
         try:
-            handle = self._service.create_preview(self._sample_id, self.current_recipe())
+            handle = self._service.create_preview(self._sample_id, recipe)
         except ApplicationError as exc:
             self._preview_note.setText(str(exc))
             return
-        self._preview_note.setText(f"Preview quality: {handle.quality}. {handle.note}")
+        self._preview_btn.setEnabled(False)
+        self._preview_note.setText(
+            f"Rendering {handle.quality} recipe preview off-thread…"
+        )
+        preview_dir = self._context.paths.cache_dir / "previews"
+        task = _PreviewTask(
+            self._service,
+            self._sample_id,
+            recipe,
+            preview_dir,
+            self._preview_signals,
+        )
+        QThreadPool.globalInstance().start(task)
+
+    @Slot(str, object, object)
+    def _on_preview_ready(self, sample_id: str, path: object, error: object) -> None:
+        self._preview_btn.setEnabled(True)
+        if self._sample_id is None or sample_id != str(self._sample_id):
+            return
+        if error is not None:
+            self._preview_note.setText(str(error))
+            return
+        if not isinstance(path, Path):
+            self._preview_note.setText("Preview render produced no playable file.")
+            return
+        self._preview_note.setText(
+            "Recipe preview ready. Playing the temporary render; source audio is unchanged."
+        )
+        self.preview_ready.emit(sample_id, str(path))
 
     def _request_export(self) -> None:
         if self._sample_id is None:
             return
-        # Persist current controls before opening S14 so render sees latest intent.
         try:
             self._service.save_recipe(self._sample_id, self.current_recipe())
         except ApplicationError as exc:
