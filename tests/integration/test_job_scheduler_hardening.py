@@ -13,6 +13,7 @@ from koffer.domain.timestamps import utc_now_iso
 from koffer.jobs import JobScheduler, JobSpec, lane_for_job_type
 from koffer.persistence import ConnectionFactory, apply_migrations
 from koffer.repositories.jobs import JobRepository
+from koffer.services.sources import SourceService
 
 
 def _factory(tmp_path: Path) -> ConnectionFactory:
@@ -160,5 +161,50 @@ def test_recover_interrupted_is_idempotent_for_already_terminal(tmp_path: Path) 
             assert second.get(job_id).state is JobState.INTERRUPTED
         finally:
             second.shutdown(wait=True)
+    finally:
+        scheduler.shutdown(wait=True)
+
+
+def test_source_scan_can_pause_and_resume(tmp_path: Path) -> None:
+    factory = _factory(tmp_path)
+    scheduler = JobScheduler(
+        factory,
+        io_workers=1,
+        progress_min_interval_s=0.0,
+        recover_on_start=False,
+    )
+    source_service = SourceService(factory, scheduler)
+    pack = tmp_path / "pause-pack"
+    pack.mkdir()
+    (pack / "kick.wav").write_bytes(b"RIFF....WAVE")
+
+    try:
+        blocker = scheduler.submit(
+            JobSpec(
+                type=JobType.SYNTHETIC_ITEMS,
+                scope={"item_count": 10, "sleep_ms": 30, "label": "pause-blocker"},
+            )
+        )
+        source = source_service.add_source(pack)
+        scan_id = source_service.scan(source.id)
+        scheduler.pause(scan_id)
+        assert scheduler.get(scan_id).state is JobState.PAUSE_REQUESTED
+
+        assert scheduler.wait(blocker, timeout=10.0).state is JobState.COMPLETED
+
+        import time
+
+        paused = scheduler.get(scan_id)
+        for _ in range(200):
+            paused = scheduler.get(scan_id)
+            if paused.state is JobState.PAUSED:
+                break
+            time.sleep(0.01)
+        assert paused.state is JobState.PAUSED
+
+        scheduler.resume(scan_id)
+        completed = scheduler.wait(scan_id, timeout=10.0)
+        assert completed.state is JobState.COMPLETED
+        assert source_service.get_detail(source.id).sample_count == 1
     finally:
         scheduler.shutdown(wait=True)
