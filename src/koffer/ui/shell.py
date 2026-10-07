@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         self._sources = SourcesScreen(context.source_service)
         self._source_detail = SourceDetailScreen(context)
         self._sample_detail = SampleDetailScreen(context)
-        self._sample_preparation = SamplePreparationScreen(context.preparation_service)
+        self._sample_preparation = SamplePreparationScreen(context)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
         self._suggestions = SuggestionsReviewScreen(context.analysis_service)
         self._similar_sounds = SimilarSoundsScreen(context.similarity_service)
@@ -237,6 +237,7 @@ class MainWindow(QMainWindow):
         self._similar_sounds.preview_requested.connect(self._preview_similar_sample)
         self._sample_preparation.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._sample_preparation.export_requested.connect(self._open_render_export)
+        self._sample_preparation.preview_ready.connect(self._play_preparation_preview)
         self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._metadata_editor.execute_requested.connect(self._execute_metadata_plan)
         self._suggestions.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
@@ -614,6 +615,8 @@ class MainWindow(QMainWindow):
     def open_sample_preparation(self, sample_id: EntityId) -> None:
         """Present S08 for the given Sample id."""
         self._sample_preparation.show_sample(sample_id)
+        detail = self._context.sample_service.get_detail(sample_id)
+        self._transport.set_selection(str(sample_id), detail.sample.filename)
         self.navigate(SCREEN_SAMPLE_PREPARATION)
 
     def open_render_export(self, sample_id: EntityId) -> None:
@@ -910,6 +913,22 @@ class MainWindow(QMainWindow):
         target = path.parent if path.suffix else path
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
 
+    def _play_preparation_preview(self, sample_id: object, preview_path: object) -> None:
+        sid = EntityId(str(sample_id))
+        path = Path(str(preview_path))
+        if not path.is_file():
+            return
+        try:
+            self._context.playback_service.load(sid, path)
+            detail = self._context.sample_service.get_detail(sid)
+            self._transport.set_selection(
+                str(sid),
+                f"{detail.sample.filename} · recipe preview",
+            )
+            self._context.playback_service.play()
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Could not play recipe preview", str(exc))
+
     def _open_render_export(self, sample_id: object) -> None:
         if not isinstance(sample_id, str):
             sample_id = str(sample_id)
@@ -1034,6 +1053,26 @@ class MainWindow(QMainWindow):
                         self._sample_detail.sample_name,
                     )
                     return
+        if self._current_screen == SCREEN_SAMPLE_PREPARATION:
+            sample_id = self._sample_preparation.sample_id
+            if sample_id is None:
+                return
+            path = self._sample_preparation.preview_path
+            preview = path is not None
+            if path is None:
+                path = self._context.resolve_sample_media_path(sample_id)
+            if path is None or not path.is_file():
+                return
+            try:
+                self._context.playback_service.load(sample_id, path)
+                detail = self._context.sample_service.get_detail(sample_id)
+                title = detail.sample.filename
+                if preview:
+                    title += " · recipe preview"
+                self._transport.set_selection(str(sample_id), title)
+            except ApplicationError:
+                return
+            return
         if self._current_screen == SCREEN_COLLECTION_DETAIL:
             self._collection_detail.load_selection_into_playback()
             return
