@@ -43,6 +43,14 @@ def test_s00_add_source_registers_and_enters_library(qtbot: object, tmp_path: Pa
         # Scan is queued immediately; status may already be scanning.
         assert sources[0].status in {SourceStatus.ONLINE, SourceStatus.SCANNING}
         assert window.current_screen_id() == "S01"
+        # Discovery streams into the browser without requiring manual refresh/navigation.
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: window.library.model.rowCount() == 1,
+            timeout=5000,
+        )
+        activity_status = window.findChild(QPushButton, "topBarActivityButton")
+        assert activity_status is not None
+        assert activity_status.text()
         # Adding a Source must not move/mutate audio bytes.
         assert audio.is_file()
         assert audio.read_bytes() == before
