@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -65,7 +65,6 @@ class _WaveformTask(QRunnable):
         except Exception:
             envelope = None
         self._signals.completed.emit(str(self._sample_id), envelope)
-
 
 
 class LibraryBrowserScreen(QWidget):
