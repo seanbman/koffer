@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
         self._collections = CollectionsScreen(context.collection_service)
         self._collection_detail = CollectionDetailScreen(context)
         self._sources = SourcesScreen(context.source_service)
-        self._source_detail = SourceDetailScreen(context.source_service)
+        self._source_detail = SourceDetailScreen(context)
         self._sample_detail = SampleDetailScreen(context)
         self._sample_preparation = SamplePreparationScreen(context.preparation_service)
         self._metadata_editor = MetadataEditorScreen(context.metadata_service)
@@ -467,7 +467,9 @@ class MainWindow(QMainWindow):
                     f"Collections / {self._collection_detail.collection_name or 'Collection'}"
                 ),
                 SCREEN_SOURCES: "Sources",
-                SCREEN_SOURCE_DETAIL: "Source",
+                SCREEN_SOURCE_DETAIL: (
+                    f"Sources / {self._source_detail.source_name or 'Source'}"
+                ),
                 SCREEN_SAMPLE_DETAIL: f"Sample / {self._sample_detail.sample_name or 'Detail'}",
                 SCREEN_SAMPLE_PREPARATION: "Prepare",
                 SCREEN_METADATA_EDITOR: "Metadata",
