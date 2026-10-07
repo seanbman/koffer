@@ -158,6 +158,32 @@ def run_technical_probe(
             )
             continue
 
+        latest_sample = samples.get(sample_id)
+        latest_source = (
+            sources.get(latest_sample.source_id)
+            if latest_sample is not None and latest_sample.source_id is not None
+            else None
+        )
+        if latest_sample is None or latest_source is None:
+            skipped += 1
+            failures.append(
+                {
+                    "sample_id": str(sample_id),
+                    "error": "sample_or_source_removed_during_probe",
+                }
+            )
+            _progress(
+                conn,
+                running,
+                index,
+                len(sample_ids),
+                progress=progress,
+                succeeded=succeeded,
+                failed=failed,
+                skipped=skipped,
+            )
+            continue
+
         technical.upsert(
             TechnicalMetadata(
                 sample_id=sample_id,
@@ -186,6 +212,38 @@ def run_technical_probe(
             skipped=skipped,
             active_item=str(media_path),
         )
+
+    if is_cancel_requested(conn, job.id):
+        cancel_summary = json.dumps(
+            {
+                "succeeded": succeeded,
+                "failed": failed,
+                "skipped": skipped,
+                "total": len(sample_ids),
+                "failures": failures,
+                "probe_version": PROBE_VERSION,
+                "cancelled": True,
+            }
+        )
+        cancelled = mark_cancelled(
+            conn,
+            replace(
+                running,
+                progress_current=succeeded + failed + skipped,
+                progress_total=len(sample_ids),
+                summary_json=cancel_summary,
+            ),
+            summary_json=cancel_summary,
+        )
+        _emit(
+            progress,
+            cancelled,
+            succeeded=succeeded,
+            failed=failed,
+            skipped=skipped,
+            force=True,
+        )
+        return cancelled
 
     completed_at = utc_now_iso()
     summary = {
