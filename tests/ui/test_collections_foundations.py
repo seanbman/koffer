@@ -82,9 +82,10 @@ def test_s04_renders_membership_and_empty_state(qtbot: object, tmp_path: Path) -
         member_table = window.findChild(QTableView, "collectionSampleTable")
         assert member_table is not None
         assert window.collection_detail.model.rowCount() == 1
-        assert window.collection_detail.model.data(
-            window.collection_detail.model.index(0, 0)
-        ) == "kick.wav"
+        assert (
+            window.collection_detail.model.data(window.collection_detail.model.index(0, 0))
+            == "kick.wav"
+        )
         assert empty.isHidden()
 
         member_table.selectRow(0)
