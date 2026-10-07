@@ -767,6 +767,7 @@ class MainWindow(QMainWindow):
             if library_active and self._library_nav_mode.startswith("saved:")
             else ""
         )
+        saved_button: QPushButton
         for saved_button in self._saved_search_buttons:
             saved_button.setChecked(saved_button.property("savedSearchId") == saved_id)
 
