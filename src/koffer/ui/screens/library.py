@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from koffer.app_context import AppContext
+from koffer.audio.waveform import PeakEnvelope, WaveformCache
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.domain.query import (
@@ -36,6 +37,35 @@ from koffer.ui.models.sample_table import SampleTableModel
 from koffer.ui.widgets.content_state import ContentState, ContentStatePanel
 from koffer.ui.widgets.filter_panel import FilterPanel
 from koffer.ui.widgets.inspector import InspectorPanel
+
+
+class _WaveformSignals(QObject):
+    completed = Signal(str, object)
+
+
+class _WaveformTask(QRunnable):
+    def __init__(
+        self,
+        cache: WaveformCache,
+        sample_id: EntityId,
+        media_path: Path,
+        signals: _WaveformSignals,
+    ) -> None:
+        super().__init__()
+        self._cache = cache
+        self._sample_id = sample_id
+        self._media_path = media_path
+        self._signals = signals
+
+    @Slot()
+    def run(self) -> None:
+        envelope: PeakEnvelope | None
+        try:
+            envelope = self._cache.get_or_build(self._sample_id, self._media_path)
+        except Exception:
+            envelope = None
+        self._signals.completed.emit(str(self._sample_id), envelope)
+
 
 
 class LibraryBrowserScreen(QWidget):
@@ -65,6 +95,8 @@ class LibraryBrowserScreen(QWidget):
         self._search_debounce.setSingleShot(True)
         self._search_debounce.setInterval(150)
         self._search_debounce.timeout.connect(self._apply_text_query)
+        self._waveform_signals = _WaveformSignals(self)
+        self._waveform_signals.completed.connect(self._on_waveform_ready)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 24, 24, 24)
@@ -436,18 +468,22 @@ class LibraryBrowserScreen(QWidget):
             return
 
         media = self._context.resolve_sample_media_path(sample_row.id)
-        envelope = None
         media_path: str | None = None
         if media is not None and media.is_file():
             media_path = str(media)
-            try:
-                envelope = self._context.waveform_cache.get_or_build(sample_row.id, Path(media))
-            except ApplicationError:
-                envelope = None
 
         # Inspector updates must not clear/replace table selection context.
         selected_before = self._selected_sample_id()
-        self._inspector.show_sample(sample_row, envelope=envelope, media_path=media_path)
+        self._inspector.show_sample(sample_row, envelope=None, media_path=media_path)
+        if media is not None and media.is_file():
+            self._inspector.set_waveform(None, loading=True)
+            task = _WaveformTask(
+                self._context.waveform_cache,
+                sample_row.id,
+                Path(media),
+                self._waveform_signals,
+            )
+            QThreadPool.globalInstance().start(task)
         if self._selected_sample_id() != selected_before:
             self._restore_selection(str(sample_row.id))
 
@@ -457,6 +493,14 @@ class LibraryBrowserScreen(QWidget):
         if self._auto_preview:
             self.load_selection_into_playback()
             self._context.playback_service.play()
+
+    @Slot(str, object)
+    def _on_waveform_ready(self, sample_id: str, envelope: object) -> None:
+        """Apply a background waveform only if its Sample remains selected."""
+        if self._selected_sample_id() != sample_id:
+            return
+        resolved = envelope if isinstance(envelope, PeakEnvelope) else None
+        self._inspector.set_waveform(resolved)
 
     def _on_double_clicked(self, *_args: object) -> None:
         self._emit_open_detail()
