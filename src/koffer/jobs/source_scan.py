@@ -368,9 +368,7 @@ def _apply_discovery(
     sources_repo.update(
         replace(
             current_source,
-            status=(
-                SourceStatus.ONLINE if current_source.enabled else SourceStatus.DISABLED
-            ),
+            status=(SourceStatus.ONLINE if current_source.enabled else SourceStatus.DISABLED),
             last_scan_completed_at=now,
             last_seen_at=now,
             updated_at=now,
