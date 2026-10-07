@@ -334,13 +334,9 @@ class SourceService:
         sample_repo = SampleRepository(conn)
         source_samples = tuple(sample_repo.list_by_source(source_id))
         technical = TechnicalMetadataRepository(conn)
-        pending_analysis = sum(
-            1 for sample in source_samples if technical.get(sample.id) is None
-        )
+        pending_analysis = sum(1 for sample in source_samples if technical.get(sample.id) is None)
         issue_count = sum(
-            1
-            for sample in source_samples
-            if sample.availability is not SampleAvailability.ONLINE
+            1 for sample in source_samples if sample.availability is not SampleAvailability.ONLINE
         )
         rules = tuple(SourceExclusionRepository(conn).list_for_source(source_id))
         source_jobs = self._jobs_by_source(conn).get(str(source_id), [])
