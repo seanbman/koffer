@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
-from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
