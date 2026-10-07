@@ -128,7 +128,8 @@ class SourcesScreen(QWidget):
             f"{source.display_name}\n"
             f"{source.root_path}\n"
             f"{status_text} · {enabled_text} · {item.sample_count} files · "
-            f"last scan {last_scan}{job_text}"
+            f"{item.pending_analysis_count} pending analysis · "
+            f"{item.issue_count} issue(s) · last scan {last_scan}{job_text}"
         )
         row = QListWidgetItem(text)
         row.setData(int(Qt.ItemDataRole.UserRole), str(source.id))
