@@ -348,6 +348,20 @@ class CollectionDetailScreen(QWidget):
         self.refresh()
         self.membership_changed.emit()
 
+    def load_selection_into_playback(self) -> None:
+        """Load the selected Collection Sample into the shared preview transport."""
+        sample_id = self._selected_sample_id()
+        if sample_id is None:
+            return
+        sid = EntityId(sample_id)
+        path = self._context.resolve_sample_media_path(sid)
+        if path is None or not path.is_file():
+            return
+        try:
+            self._context.playback_service.load(sid, path)
+        except ApplicationError:
+            return
+
     def selected_sample_ids(self) -> list[EntityId]:
         ids: list[EntityId] = []
         for index in self._table.selectionModel().selectedRows():
