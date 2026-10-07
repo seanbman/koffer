@@ -262,6 +262,7 @@ class CollectionDetailScreen(QWidget):
         inspector_column.setContentsMargins(0, 0, 0, 0)
         inspector_column.setSpacing(8)
         self._inspector = InspectorPanel()
+        self._inspector.setObjectName("collectionInspectorPanel")
         inspector_column.addWidget(self._inspector, stretch=1)
 
         inspector_actions = QHBoxLayout()
