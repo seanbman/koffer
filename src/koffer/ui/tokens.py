@@ -285,6 +285,9 @@ QLineEdit#librarySearchField {{
     padding: 6px 10px;
     min-height: 28px;
 }}
+QLineEdit#librarySearchField:focus {{
+    border: 1px solid {CLAY_BRIGHT};
+}}
 QComboBox QAbstractItemView {{
     background-color: {SURFACE_1};
     color: {TEXT};
