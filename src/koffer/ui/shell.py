@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -647,11 +648,11 @@ class MainWindow(QMainWindow):
         column.addStretch(1)
         return rail
 
-    def _make_nav_button(self, label: str, callback: object) -> QPushButton:
+    def _make_nav_button(self, label: str, callback: Callable[[], None]) -> QPushButton:
         button = QPushButton(label)
         button.setObjectName("navButton")
         button.setCheckable(True)
-        button.clicked.connect(callback)  # type: ignore[arg-type]
+        button.clicked.connect(callback)
         return button
 
     def _update_nav_checked(self) -> None:
@@ -680,8 +681,8 @@ class MainWindow(QMainWindow):
             if library_active and self._library_nav_mode.startswith("saved:")
             else ""
         )
-        for button in self._nav.findChildren(QPushButton, "savedSearchNavButton"):
-            button.setChecked(button.property("savedSearchId") == saved_id)
+        for saved_button in self._nav.findChildren(QPushButton, "savedSearchNavButton"):
+            saved_button.setChecked(saved_button.property("savedSearchId") == saved_id)
 
     def _sync_initial_route(self) -> None:
         if self._context.source_service.list():
