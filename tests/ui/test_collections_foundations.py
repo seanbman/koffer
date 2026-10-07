@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QListWidget, QPushButton, QWidget
+from PySide6.QtWidgets import QLabel, QListWidget, QPushButton, QTableView, QWidget
 
 from koffer.app_context import AppContext
 from koffer.domain import JobState
@@ -79,15 +79,21 @@ def test_s04_renders_membership_and_empty_state(qtbot: object, tmp_path: Path) -
 
         # Add membership through UI helper (same path as drag/drop).
         window.collection_detail.add_sample_ids([samples[0].id])
-        member_list = window.findChild(QListWidget, "collectionMemberList")
-        assert member_list is not None
-        assert member_list.count() == 1
-        assert "kick.wav" in member_list.item(0).text()
+        member_table = window.findChild(QTableView, "collectionSampleTable")
+        assert member_table is not None
+        assert window.collection_detail.model.rowCount() == 1
+        assert window.collection_detail.model.data(
+            window.collection_detail.model.index(0, 0)
+        ) == "kick.wav"
         assert empty.isHidden()
+
+        member_table.selectRow(0)
+        assert window.transport.selected_sample_id == str(samples[0].id)
+        assert window.collection_detail.selected_sample_ids() == [samples[0].id]
 
         # Removing membership leaves the audio file bytes intact.
         window.collection_detail.remove_sample_ids([samples[0].id])
-        assert member_list.count() == 0
+        assert window.collection_detail.model.rowCount() == 0
         assert not empty.isHidden()
         assert kick.is_file()
         assert kick.read_bytes() == before
