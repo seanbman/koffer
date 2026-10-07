@@ -17,7 +17,7 @@ from koffer.domain.enums import (
 )
 from koffer.domain.errors import NotFoundError, ValidationError
 from koffer.domain.ids import EntityId, new_entity_id
-from koffer.domain.models import ExclusionPreview, ExclusionRule, Job, Source
+from koffer.domain.models import ExclusionPreview, ExclusionRule, Job, Sample, Source
 from koffer.domain.timestamps import utc_now_iso
 from koffer.filesystem.scanner import preview_exclusions
 from koffer.jobs.scheduler import JobScheduler, JobSpec
@@ -27,6 +27,7 @@ from koffer.repositories.exclusions import SourceExclusionRepository
 from koffer.repositories.jobs import JobRepository
 from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
+from koffer.repositories.technical_metadata import TechnicalMetadataRepository
 
 _ACTIVE_JOB_STATES = frozenset(
     {
@@ -41,20 +42,25 @@ _ACTIVE_JOB_STATES = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class SourceListItem:
-    """Source row for S05: repository status plus lightweight counts."""
+    """Source row for S05: repository status plus health counts."""
 
     source: Source
     sample_count: int
+    pending_analysis_count: int
+    issue_count: int
     exclusion_count: int
     current_job: Job | None
 
 
 @dataclass(frozen=True, slots=True)
 class SourceDetailView:
-    """S06 foundation: status, exclusions, and recent jobs summary."""
+    """S06 view: health, exclusions, indexed Samples, and recent Jobs."""
 
     source: Source
     sample_count: int
+    pending_analysis_count: int
+    issue_count: int
+    samples: tuple[Sample, ...]
     exclusions: tuple[ExclusionRule, ...]
     recent_jobs: tuple[Job, ...]
     current_job: Job | None
@@ -241,10 +247,20 @@ class SourceService:
         conn = self._factory.get_connection()
         sources = SourceRepository(conn).list_all()
         samples = SampleRepository(conn)
+        technical = TechnicalMetadataRepository(conn)
         exclusions = SourceExclusionRepository(conn)
         jobs_by_source = self._jobs_by_source(conn)
         items: builtins.list[SourceListItem] = []
         for source in sources:
+            source_samples = samples.list_by_source(source.id)
+            pending_analysis = sum(
+                1 for sample in source_samples if technical.get(sample.id) is None
+            )
+            issue_count = sum(
+                1
+                for sample in source_samples
+                if sample.availability is not SampleAvailability.ONLINE
+            )
             source_jobs = jobs_by_source.get(str(source.id), [])
             current = next(
                 (job for job in source_jobs if job.state in _ACTIVE_JOB_STATES),
@@ -253,7 +269,9 @@ class SourceService:
             items.append(
                 SourceListItem(
                     source=source,
-                    sample_count=len(samples.list_by_source(source.id)),
+                    sample_count=len(source_samples),
+                    pending_analysis_count=pending_analysis,
+                    issue_count=issue_count,
                     exclusion_count=len(exclusions.list_for_source(source.id)),
                     current_job=current,
                 )
@@ -266,7 +284,17 @@ class SourceService:
         source = SourceRepository(conn).get(source_id)
         if source is None:
             raise NotFoundError(f"Source not found: {source_id}")
-        sample_count = len(SampleRepository(conn).list_by_source(source_id))
+        sample_repo = SampleRepository(conn)
+        source_samples = tuple(sample_repo.list_by_source(source_id))
+        technical = TechnicalMetadataRepository(conn)
+        pending_analysis = sum(
+            1 for sample in source_samples if technical.get(sample.id) is None
+        )
+        issue_count = sum(
+            1
+            for sample in source_samples
+            if sample.availability is not SampleAvailability.ONLINE
+        )
         rules = tuple(SourceExclusionRepository(conn).list_for_source(source_id))
         source_jobs = self._jobs_by_source(conn).get(str(source_id), [])
         current = next(
@@ -275,7 +303,10 @@ class SourceService:
         )
         return SourceDetailView(
             source=source,
-            sample_count=sample_count,
+            sample_count=len(source_samples),
+            pending_analysis_count=pending_analysis,
+            issue_count=issue_count,
+            samples=source_samples,
             exclusions=rules,
             recent_jobs=tuple(source_jobs[:8]),
             current_job=current,
