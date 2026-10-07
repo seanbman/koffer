@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QFormLayout,
     QHBoxLayout,
+    QFileDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -23,7 +24,12 @@ from PySide6.QtWidgets import (
 from koffer.domain.enums import ArtworkAction, MetadataWriteTarget
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
-from koffer.domain.metadata_write import MetadataEditState, MetadataWritePlan, MetadataWriteRequest
+from koffer.domain.metadata_write import (
+    ArtworkPayload,
+    MetadataEditState,
+    MetadataWritePlan,
+    MetadataWriteRequest,
+)
 from koffer.services.metadata import MetadataService
 from koffer.ui.tokens import CLAY, MUTED, RED, YELLOW
 
@@ -46,6 +52,9 @@ class MetadataEditorScreen(QWidget):
         self._state: MetadataEditState | None = None
         self._plan: MetadataWritePlan | None = None
         self._field_edits: dict[str, QLineEdit] = {}
+        self._artwork_action = ArtworkAction.KEEP
+        self._artwork_payload: ArtworkPayload | None = None
+        self._artwork_path: Path | None = None
         self.setObjectName("metadataEditorScreen")
 
         root = QVBoxLayout(self)
@@ -98,10 +107,32 @@ class MetadataEditorScreen(QWidget):
         body_layout.addWidget(musical)
 
         # Artwork
+        artwork_heading = QLabel("Artwork")
+        artwork_heading.setObjectName("metadataEditorArtworkHeading")
+        body_layout.addWidget(artwork_heading)
+
         self._artwork = QLabel("Artwork: —")
         self._artwork.setObjectName("metadataEditorArtworkSection")
         self._artwork.setWordWrap(True)
         body_layout.addWidget(self._artwork)
+
+        artwork_actions = QHBoxLayout()
+        self._artwork_replace = QPushButton("Add / Replace")
+        self._artwork_replace.setObjectName("metadataEditorArtworkReplaceButton")
+        self._artwork_replace.clicked.connect(self._choose_artwork)
+        artwork_actions.addWidget(self._artwork_replace)
+
+        self._artwork_remove = QPushButton("Remove")
+        self._artwork_remove.setObjectName("metadataEditorArtworkRemoveButton")
+        self._artwork_remove.clicked.connect(self._mark_remove_artwork)
+        artwork_actions.addWidget(self._artwork_remove)
+
+        self._artwork_keep = QPushButton("Keep Current")
+        self._artwork_keep.setObjectName("metadataEditorArtworkKeepButton")
+        self._artwork_keep.clicked.connect(self._keep_artwork)
+        artwork_actions.addWidget(self._artwork_keep)
+        artwork_actions.addStretch(1)
+        body_layout.addLayout(artwork_actions)
 
         # Koffer tags — never forces embedded write
         tags_heading = QLabel("Koffer Tags (library-only — not written to the file)")
@@ -199,6 +230,9 @@ class MetadataEditorScreen(QWidget):
     def show_samples(self, sample_ids: list[EntityId]) -> None:
         self._sample_ids = list(sample_ids)
         self._plan = None
+        self._artwork_action = ArtworkAction.KEEP
+        self._artwork_payload = None
+        self._artwork_path = None
         self._error.setText("")
         self.refresh()
 
@@ -239,11 +273,21 @@ class MetadataEditorScreen(QWidget):
             self._field_edits[field.name] = edit
 
         if state.artwork_supported:
-            present = "present" if state.artwork_present else "none"
-            self._artwork.setText(
-                f"Artwork: supported ({present}). Add/replace/remove available where format allows."
+            self._artwork_replace.setEnabled(True)
+            self._artwork_remove.setEnabled(state.artwork_present or self._artwork_payload is not None)
+            self._artwork_keep.setEnabled(self._artwork_action is not ArtworkAction.KEEP)
+            self._artwork_replace.setText(
+                "Replace Artwork" if state.artwork_present else "Add Artwork"
             )
+            self._artwork.setStyleSheet("")
+            self._sync_artwork_status(state)
         else:
+            self._artwork_action = ArtworkAction.KEEP
+            self._artwork_payload = None
+            self._artwork_path = None
+            self._artwork_replace.setEnabled(False)
+            self._artwork_remove.setEnabled(False)
+            self._artwork_keep.setEnabled(False)
             self._artwork.setText(
                 state.artwork_explanation or "Artwork: not supported for selected format(s)."
             )
@@ -274,6 +318,84 @@ class MetadataEditorScreen(QWidget):
         self._copy_dir.setEnabled(enabled)
         self._copy_dir_label.setEnabled(enabled)
 
+    def _sync_artwork_status(self, state: MetadataEditState | None = None) -> None:
+        current = state or self._state
+        if current is None:
+            self._artwork.setText("Artwork: —")
+            return
+        existing = "present" if current.artwork_present else "none"
+        if self._artwork_action is ArtworkAction.ADD_REPLACE and self._artwork_path is not None:
+            self._artwork.setText(
+                f"Artwork: {existing}. Pending add/replace: {self._artwork_path.name}"
+            )
+        elif self._artwork_action is ArtworkAction.REMOVE:
+            self._artwork.setText(f"Artwork: {existing}. Pending removal.")
+        else:
+            self._artwork.setText(f"Artwork: supported ({existing}). No pending artwork write.")
+
+    def _choose_artwork(self) -> None:
+        selected, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Choose Artwork",
+            str(Path.home()),
+            "Images (*.jpg *.jpeg *.png)",
+        )
+        if selected:
+            self.set_artwork_file(Path(selected))
+
+    def set_artwork_file(self, path: Path) -> bool:
+        """Set pending JPEG/PNG artwork; helper is deterministic for UI tests."""
+        target = Path(path)
+        mime = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+        }.get(target.suffix.lower())
+        if mime is None:
+            self._error.setText("Artwork must be a JPEG or PNG image.")
+            return False
+        try:
+            data = target.read_bytes()
+        except OSError as exc:
+            self._error.setText(f"Could not read artwork: {exc}")
+            return False
+        if not data:
+            self._error.setText("Artwork image is empty.")
+            return False
+        if len(data) > 20 * 1024 * 1024:
+            self._error.setText("Artwork image exceeds the 20 MB safety limit.")
+            return False
+        self._error.setText("")
+        self._artwork_action = ArtworkAction.ADD_REPLACE
+        self._artwork_payload = ArtworkPayload(data=data, mime=mime)
+        self._artwork_path = target
+        self._plan = None
+        self._execute_btn.setEnabled(False)
+        self._artwork_keep.setEnabled(True)
+        self._artwork_remove.setEnabled(True)
+        self._sync_artwork_status()
+        return True
+
+    def _mark_remove_artwork(self) -> None:
+        self._artwork_action = ArtworkAction.REMOVE
+        self._artwork_payload = None
+        self._artwork_path = None
+        self._plan = None
+        self._execute_btn.setEnabled(False)
+        self._artwork_keep.setEnabled(True)
+        self._sync_artwork_status()
+
+    def _keep_artwork(self) -> None:
+        self._artwork_action = ArtworkAction.KEEP
+        self._artwork_payload = None
+        self._artwork_path = None
+        self._plan = None
+        self._execute_btn.setEnabled(False)
+        self._artwork_keep.setEnabled(False)
+        if self._state is not None:
+            self._artwork_remove.setEnabled(self._state.artwork_present)
+        self._sync_artwork_status()
+
     def _selected_target(self) -> MetadataWriteTarget:
         if self._write_to_copy.isChecked():
             return MetadataWriteTarget.WRITE_TO_COPY
@@ -298,8 +420,10 @@ class MetadataEditorScreen(QWidget):
             self._error.setText("No samples selected.")
             return
         fields = self._collect_fields()
-        if not fields:
-            self._error.setText("Edit at least one supported embeddable field before planning.")
+        if not fields and self._artwork_action is ArtworkAction.KEEP:
+            self._error.setText(
+                "Edit a supported field or choose an Artwork action before planning."
+            )
             return
         target = self._selected_target()
         copy_dir = self._copy_dir.text().strip() or None
@@ -307,8 +431,8 @@ class MetadataEditorScreen(QWidget):
             sample_ids=tuple(self._sample_ids),
             target=target,
             fields=fields,
-            artwork_action=ArtworkAction.KEEP,
-            artwork=None,
+            artwork_action=self._artwork_action,
+            artwork=self._artwork_payload,
             copy_destination_dir=copy_dir,
         )
         try:
@@ -335,6 +459,6 @@ class MetadataEditorScreen(QWidget):
         more = "" if len(paths) <= 5 else f" (+{len(paths) - 5} more)"
         self._plan_summary.setText(
             f"Target: {target_label} · {len(plan.items)} file(s): {preview}{more}. "
-            f"Exceptions: {len(plan.exceptions)}."
+            f"Artwork: {plan.artwork_action} · Exceptions: {len(plan.exceptions)}."
         )
         self._execute_btn.setEnabled(len(plan.exceptions) == 0 and len(plan.items) > 0)
