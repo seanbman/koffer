@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -61,6 +61,10 @@ class LibraryBrowserScreen(QWidget):
         self._context = context
         self._model = SampleTableModel(context.search_service, parent=self)
         self._auto_preview = False  # docs/28 default OFF
+        self._search_debounce = QTimer(self)
+        self._search_debounce.setSingleShot(True)
+        self._search_debounce.setInterval(150)
+        self._search_debounce.timeout.connect(self._apply_text_query)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 24, 24, 24)
@@ -362,9 +366,10 @@ class LibraryBrowserScreen(QWidget):
         self._sync_content_state()
 
     def _on_text_changed(self, _text: str) -> None:
-        self._apply_text_query()
+        self._search_debounce.start()
 
     def _apply_text_query(self) -> None:
+        self._search_debounce.stop()
         text = self._search_field.text().strip()
         current = self._model.query
         self._model.set_query(
