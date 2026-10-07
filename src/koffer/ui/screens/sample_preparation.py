@@ -120,6 +120,7 @@ class SamplePreparationScreen(QWidget):
         self._service = context.preparation_service
         self._sample_id: EntityId | None = None
         self._source_path: str = ""
+        self._preview_path: Path | None = None
         self._waveform_signals = _WaveformSignals(self)
         self._waveform_signals.completed.connect(self._on_waveform_ready)
         self._preview_signals = _PreviewSignals(self)
@@ -313,8 +314,17 @@ class SamplePreparationScreen(QWidget):
         self._status.setObjectName("samplePreparationStatus")
         root.addWidget(self._status)
 
+    @property
+    def sample_id(self) -> EntityId | None:
+        return self._sample_id
+
+    @property
+    def preview_path(self) -> Path | None:
+        return self._preview_path
+
     def show_sample(self, sample_id: EntityId, *, source_path: str | None = None) -> None:
         self._sample_id = sample_id
+        self._preview_path = None
         media = self._service.resolve_media_path(sample_id)
         self._source_path = source_path or (str(media) if media is not None else "")
         self._source_label.setText(f"Source: {self._source_path or '—'}")
@@ -382,6 +392,7 @@ class SamplePreparationScreen(QWidget):
             combo.setCurrentIndex(index)
 
     def _on_controls_changed(self) -> None:
+        self._preview_path = None
         end = self._trim_end.value()
         end_label = "end" if end == 0 else f"{end} ms"
         self._trim_state.setText(f"Trim: {self._trim_start.value()} ms → {end_label}")
@@ -471,6 +482,7 @@ class SamplePreparationScreen(QWidget):
         if not isinstance(path, Path):
             self._preview_note.setText("Preview render produced no playable file.")
             return
+        self._preview_path = path
         self._preview_note.setText(
             "Recipe preview ready. Playing the temporary render; source audio is unchanged."
         )
