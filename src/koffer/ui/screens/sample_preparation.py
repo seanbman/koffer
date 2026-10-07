@@ -469,7 +469,7 @@ class SamplePreparationScreen(QWidget):
             return
         recipe = self.current_recipe()
         try:
-            handle = self._service.create_preview(self._sample_id, recipe)
+            self._service.create_preview(self._sample_id, recipe)
         except ApplicationError as exc:
             self._preview_note.setText(str(exc))
             return
