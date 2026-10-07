@@ -18,7 +18,7 @@ from koffer.services.collections import CollectionService
 from koffer.services.file_operations import FileOperationService
 from koffer.services.maintenance import MaintenanceService
 from koffer.services.metadata import MetadataService
-from koffer.services.playback import PlaybackService
+from koffer.services.playback import PlaybackService, PlaybackState
 from koffer.services.preparation import PreparationService
 from koffer.services.recovery import RecoveryService
 from koffer.services.samples import SampleService
@@ -85,7 +85,7 @@ class AppContext:
         similarity_service = SimilarityService(factory, paths.cache_dir, scheduler=scheduler)
         maintenance_service = MaintenanceService(factory, scheduler, paths)
         recovery_service = RecoveryService(factory)
-        return cls(
+        context = cls(
             paths=paths,
             connection_factory=factory,
             scheduler=scheduler,
@@ -104,6 +104,16 @@ class AppContext:
             recovery_service=recovery_service,
             settings_service=settings_service,
         )
+        context.playback_service.state_changed.connect(context._record_preview_start)
+        return context
+
+    def _record_preview_start(self, state: str) -> None:
+        if state != PlaybackState.PLAYING.value:
+            return
+        sample_id = self.playback_service.sample_id
+        if sample_id is None:
+            return
+        self.sample_service.mark_previewed(sample_id)
 
     @classmethod
     def open_default(cls) -> AppContext:
