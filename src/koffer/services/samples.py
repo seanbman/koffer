@@ -143,6 +143,18 @@ class SampleService:
             raise NotFoundError(f"Sample not found: {sample_id}")
         return self.set_favorite(sample_id, not sample.favorite)
 
+    def mark_previewed(self, sample_id: EntityId) -> Sample:
+        """Record a successful preview start for Recents ordering."""
+        conn = self._factory.get_connection()
+        repo = SampleRepository(conn)
+        sample = repo.get(sample_id)
+        if sample is None:
+            raise NotFoundError(f"Sample not found: {sample_id}")
+        now = utc_now_iso()
+        updated = replace(sample, last_previewed_at=now, updated_at=now)
+        repo.update(updated)
+        return updated
+
     @staticmethod
     def _has_preparation_recipe(conn: sqlite3.Connection, sample_id: EntityId) -> bool:
         row = conn.execute(
