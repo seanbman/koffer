@@ -149,6 +149,17 @@ class SourceService:
         if source is None:
             raise NotFoundError(f"Source not found: {source_id}")
 
+        active_jobs = [
+            job
+            for job in self._jobs_by_source(conn).get(str(source_id), [])
+            if job.state in _ACTIVE_JOB_STATES
+        ]
+        if active_jobs:
+            raise ValidationError(
+                "Cannot remove a Source while background work is active",
+                detail="Cancel or finish the current Source Job first.",
+            )
+
         samples = SampleRepository(conn)
         search = SearchIndexService(conn)
         existing = samples.list_by_source(source_id)
@@ -168,6 +179,9 @@ class SourceService:
         now = utc_now_iso()
         status: SourceStatus = source.status
         if not enabled:
+            for job in self._jobs_by_source(conn).get(str(source_id), []):
+                if job.state in _ACTIVE_JOB_STATES:
+                    self._scheduler.cancel(job.id)
             status = SourceStatus.DISABLED
         elif source.status is SourceStatus.DISABLED:
             status = SourceStatus.ONLINE
