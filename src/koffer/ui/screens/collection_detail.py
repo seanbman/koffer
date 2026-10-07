@@ -27,7 +27,14 @@ from koffer.app_context import AppContext
 from koffer.audio.waveform import PeakEnvelope, WaveformCache
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
-from koffer.domain.query import PageRequest, SampleFilters, SampleQuery, SortDirection, SortField, SortSpec
+from koffer.domain.query import (
+    PageRequest,
+    SampleFilters,
+    SampleQuery,
+    SortDirection,
+    SortField,
+    SortSpec,
+)
 from koffer.services.search import SearchService
 from koffer.ui.models.sample_table import SampleTableModel
 from koffer.ui.tokens import MUTED
@@ -310,7 +317,8 @@ class CollectionDetailScreen(QWidget):
             )
         )
         count = self._model.rowCount()
-        self._count.setText(f"{count} sample{'s' if count != 1 else ''} · sort {collection.sort_mode}")
+        suffix = "s" if count != 1 else ""
+        self._count.setText(f"{count} sample{suffix} · sort {collection.sort_mode}")
         empty = count == 0
         self._empty.setVisible(empty)
         self._table.setVisible(not empty)
