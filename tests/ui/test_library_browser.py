@@ -194,3 +194,25 @@ def test_s01_table_sorting_updates_paged_query(qtbot: object, tmp_path: Path) ->
         assert window.library.model.query.sort.direction is SortDirection.ASC
     finally:
         context.close()
+
+
+def test_s01_search_text_is_debounced(qtbot: object, tmp_path: Path) -> None:
+    context = AppContext.open_temp(tmp_path / "search-debounce-ui")
+    try:
+        _seed_library(context, tmp_path, name="debounced-kick.wav")
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S01")
+
+        search = window.library.search_field
+        assert window.library.model.query.text == ""
+        search.setText("kick")
+        assert window.library.model.query.text == ""
+
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: window.library.model.query.text == "kick",
+            timeout=1000,
+        )
+        assert window.library.model.rowCount() == 1
+    finally:
+        context.close()
