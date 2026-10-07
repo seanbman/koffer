@@ -168,7 +168,8 @@ class SamplePreparationScreen(QWidget):
         root.addWidget(self._trim_state)
 
         self._preview_note = QLabel(
-            "Preview renders the current recipe to a temporary file; the original remains untouched."
+            "Preview renders the current recipe to a temporary file; "
+            "the original remains untouched."
         )
         self._preview_note.setObjectName("samplePreparationPreviewNote")
         self._preview_note.setWordWrap(True)
