@@ -681,7 +681,11 @@ class MainWindow(QMainWindow):
             if library_active and self._library_nav_mode.startswith("saved:")
             else ""
         )
-        for saved_button in self._nav.findChildren(QPushButton, "savedSearchNavButton"):
+        saved_buttons: list[QPushButton] = self._nav.findChildren(
+            QPushButton,
+            "savedSearchNavButton",
+        )
+        for saved_button in saved_buttons:
             saved_button.setChecked(saved_button.property("savedSearchId") == saved_id)
 
     def _sync_initial_route(self) -> None:
