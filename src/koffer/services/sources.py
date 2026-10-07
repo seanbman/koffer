@@ -154,11 +154,14 @@ class SourceService:
             for job in self._jobs_by_source(conn).get(str(source_id), [])
             if job.state in _ACTIVE_JOB_STATES
         ]
-        if active_jobs:
+        active_scans = [job for job in active_jobs if job.type is JobType.SOURCE_SCAN]
+        if active_scans:
             raise ValidationError(
-                "Cannot remove a Source while background work is active",
-                detail="Cancel or finish the current Source Job first.",
+                "Cannot remove a Source while its filesystem scan is active",
+                detail="Cancel or finish the current Source scan first.",
             )
+        for job in active_jobs:
+            self._scheduler.cancel(job.id)
 
         samples = SampleRepository(conn)
         search = SearchIndexService(conn)
