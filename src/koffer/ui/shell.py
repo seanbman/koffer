@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from koffer.app_context import AppContext
-from koffer.domain.enums import JobState
+from koffer.domain.enums import JobState, JobType
 from koffer.domain.errors import ApplicationError
 from koffer.domain.file_operations import FileOperationPlan
 from koffer.domain.ids import EntityId
@@ -169,6 +169,14 @@ class MainWindow(QMainWindow):
         self._settings_audio = SettingsAudioScreen(context)
         self._maintenance = MaintenanceScreen(context)
         self._about = AboutDiagnosticsScreen(context)
+        self._library_refresh_debounce = QTimer(self)
+        self._library_refresh_debounce.setSingleShot(True)
+        self._library_refresh_debounce.setInterval(250)
+        self._library_refresh_debounce.timeout.connect(self._library.refresh)
+        self._activity_refresh_debounce = QTimer(self)
+        self._activity_refresh_debounce.setSingleShot(True)
+        self._activity_refresh_debounce.setInterval(200)
+        self._activity_refresh_debounce.timeout.connect(self._activity.refresh)
 
         self._stack.addWidget(self._welcome)
         self._stack.addWidget(self._library)
@@ -285,7 +293,20 @@ class MainWindow(QMainWindow):
                 self._job_status.setText(stage)
         else:
             self._refresh_job_status()
-        self._activity.refresh()
+
+        try:
+            job = self._context.scheduler.get(event.job_id)
+        except ApplicationError:
+            job = None
+        if job is not None and job.type in {
+            JobType.SOURCE_SCAN,
+            JobType.TECHNICAL_PROBE,
+            JobType.DETERMINISTIC_ANALYSIS,
+        }:
+            self._library_refresh_debounce.start()
+            if job.type is JobType.SOURCE_SCAN:
+                self._sources.refresh()
+        self._activity_refresh_debounce.start()
 
     def _refresh_job_status(self) -> None:
         jobs = self._context.scheduler.list()
