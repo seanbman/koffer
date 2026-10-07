@@ -40,6 +40,21 @@ QLabel#topBarStatus {{
     font-size: 11px;
     font-weight: 700;
 }}
+QPushButton#topBarActivityButton {{
+    background-color: transparent;
+    color: {MUTED};
+    border: 1px solid {BORDER};
+    border-radius: 10px;
+    padding: 2px 8px;
+    min-height: 18px;
+    font-size: 10px;
+    font-weight: 700;
+}}
+QPushButton#topBarActivityButton:hover {{
+    color: {TEXT};
+    border-color: {CLAY};
+    background-color: {SURFACE_2};
+}}
 QWidget#kofferNavRail {{
     background-color: {SURFACE_1};
     border-right: 1px solid {BORDER};
