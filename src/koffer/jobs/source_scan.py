@@ -231,10 +231,15 @@ def _apply_discovery(
         wait_if_paused(conn, job.id)
         if is_cancel_requested(conn, job.id):
             # Preserve rows already upserted; stop before missing-mark / FTS refresh.
+            current_source = sources_repo.get(source.id) or source
             sources_repo.update(
                 replace(
-                    source,
-                    status=SourceStatus.ONLINE if source.enabled else SourceStatus.DISABLED,
+                    current_source,
+                    status=(
+                        SourceStatus.ONLINE
+                        if current_source.enabled
+                        else SourceStatus.DISABLED
+                    ),
                     updated_at=utc_now_iso(),
                 )
             )
@@ -361,10 +366,13 @@ def _apply_discovery(
     for sample_id in fts_ids:
         search.refresh_sample(sample_id)
 
+    current_source = sources_repo.get(source.id) or source
     sources_repo.update(
         replace(
-            source,
-            status=SourceStatus.ONLINE if source.enabled else SourceStatus.DISABLED,
+            current_source,
+            status=(
+                SourceStatus.ONLINE if current_source.enabled else SourceStatus.DISABLED
+            ),
             last_scan_completed_at=now,
             last_seen_at=now,
             updated_at=now,
