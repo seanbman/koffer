@@ -5,8 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence, QShortcut, QShowEvent
+from PySide6.QtCore import QObject, QTimer, QUrl, Qt, Signal, Slot
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QDesktopServices,
+    QKeySequence,
+    QShortcut,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
