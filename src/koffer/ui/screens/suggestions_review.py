@@ -69,6 +69,13 @@ class SuggestionsReviewScreen(QWidget):
         self._min_confidence.setPlaceholderText("0.0–1.0")
         self._min_confidence.setMaximumWidth(100)
         filters.addWidget(self._min_confidence)
+        filters.addWidget(QLabel("Max confidence"))
+        self._max_confidence = QLineEdit()
+        self._max_confidence.setObjectName("suggestionsReviewMaxConfidence")
+        self._max_confidence.setPlaceholderText("0.0–1.0")
+        self._max_confidence.setMaximumWidth(100)
+        filters.addWidget(self._max_confidence)
+
         filters.addWidget(QLabel("Dimension"))
         self._dimension = QLineEdit()
         self._dimension.setObjectName("suggestionsReviewDimensionFilter")
@@ -168,9 +175,27 @@ class SuggestionsReviewScreen(QWidget):
             except ValueError:
                 self._status.setText("Min confidence must be a number.")
                 return
+        max_conf: float | None = None
+        raw_max = self._max_confidence.text().strip()
+        if raw_max:
+            try:
+                max_conf = float(raw_max)
+            except ValueError:
+                self._status.setText("Max confidence must be a number.")
+                return
+        if min_conf is not None and not 0.0 <= min_conf <= 1.0:
+            self._status.setText("Min confidence must be between 0.0 and 1.0.")
+            return
+        if max_conf is not None and not 0.0 <= max_conf <= 1.0:
+            self._status.setText("Max confidence must be between 0.0 and 1.0.")
+            return
+        if min_conf is not None and max_conf is not None and min_conf > max_conf:
+            self._status.setText("Min confidence cannot exceed max confidence.")
+            return
         dimension = self._dimension.text().strip() or None
         self._items = self._service.list_pending_suggestions(
             min_confidence=min_conf,
+            max_confidence=max_conf,
             dimension=dimension,
         )
         self._badge.setText(f"{len(self._items)} pending")
