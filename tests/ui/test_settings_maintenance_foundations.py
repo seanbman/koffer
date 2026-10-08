@@ -159,9 +159,7 @@ def test_s15_locate_file_repairs_missing_sample_without_moving_audio(
         assert issues is not None
         assert locate is not None
         target_row = next(
-            index
-            for index in range(issues.count())
-            if "file_missing" in issues.item(index).text()
+            index for index in range(issues.count()) if "file_missing" in issues.item(index).text()
         )
         issues.setCurrentRow(target_row)
         before = replacement.read_bytes()
@@ -180,9 +178,7 @@ def test_s15_locate_file_repairs_missing_sample_without_moving_audio(
         assert repaired.availability is SampleAvailability.ONLINE
         assert replacement.read_bytes() == before
 
-        issue_text = "\n".join(
-            issues.item(index).text() for index in range(issues.count())
-        )
+        issue_text = "\n".join(issues.item(index).text() for index in range(issues.count()))
         assert "file_missing" not in issue_text
     finally:
         context.close()
