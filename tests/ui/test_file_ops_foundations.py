@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QListWidget, QPushButton, QWidget
+from PySide6.QtWidgets import QFileDialog, QLabel, QListWidget, QPushButton, QWidget
 
 from koffer.app_context import AppContext
 from koffer.domain.enums import ConflictAction, JobState
@@ -149,5 +149,65 @@ def test_reference_plan_states_plain_language_without_destination(
         qtbot.mouseClick(execute, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
         assert window.current_screen_id() == "S16"
         assert audio.read_bytes() == before
+    finally:
+        context.close()
+
+
+
+def test_s13_choose_destination_applies_real_alternate_path(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    context = AppContext.open_temp(tmp_path / "s13-destination")
+    pack = tmp_path / "pack"
+    _write_audio(pack, "snare.wav", b"RIFF-SNARE")
+    try:
+        source = context.source_service.add_source(pack)
+        job_id = context.source_service.scan(source.id)
+        assert context.scheduler.wait(job_id, timeout=30.0).state is JobState.COMPLETED
+        samples = SampleRepository(context.connection_factory.get_connection()).list_by_source(
+            source.id
+        )
+        dest = tmp_path / "managed"
+        dest.mkdir()
+        (dest / "snare.wav").write_bytes(b"RIFF-EXISTING")
+        alternate = dest / "snare-alt.wav"
+        plan = context.file_operation_service.plan_copy([samples[0].id], dest)
+
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.open_file_operation_plan(plan)
+
+        resolve = window.findChild(QPushButton, "importReviewResolveButton")
+        assert resolve is not None
+        qtbot.mouseClick(resolve, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog,
+            "getSaveFileName",
+            lambda *_args, **_kwargs: (str(alternate), ""),
+        )
+        conflict_list = window.findChild(QListWidget, "conflictsItemList")
+        assert conflict_list is not None
+        conflict_list.setCurrentRow(0)
+        choose = window.findChild(QPushButton, "conflictsChooseDestinationButton")
+        assert choose is not None
+        qtbot.mouseClick(choose, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+        assert str(alternate) in conflict_list.item(0).text()
+
+        apply = window.findChild(QPushButton, "conflictsApplyButton")
+        assert apply is not None
+        qtbot.mouseClick(apply, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
+        assert window.current_screen_id() == "S12"
+        assert window.import_review.plan is not None
+        resolved = window.import_review.plan.items[0]
+        assert resolved.destination_path == str(alternate.resolve())
+        assert resolved.conflict_action is ConflictAction.CHOOSE_DESTINATION
+        assert not window.import_review.plan.unresolved_conflicts()
+        execute = window.findChild(QPushButton, "importReviewExecuteButton")
+        assert execute is not None
+        assert execute.isEnabled()
     finally:
         context.close()
