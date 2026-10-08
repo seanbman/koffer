@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -37,6 +38,7 @@ class ConflictsScreen(QWidget):
         self._service = file_operation_service
         self._plan: FileOperationPlan | None = None
         self._pending: dict[EntityId, ConflictAction] = {}
+        self._alternate_destinations: dict[EntityId, Path] = {}
         self.setObjectName("conflictsScreen")
 
         root = QVBoxLayout(self)
@@ -107,6 +109,11 @@ class ConflictsScreen(QWidget):
             btn.setObjectName(object_name)
             btn.clicked.connect(lambda _checked=False, a=action: self._set_selected(a))
             item_actions.addWidget(btn)
+
+        choose_destination = QPushButton("Choose Destination…")
+        choose_destination.setObjectName("conflictsChooseDestinationButton")
+        choose_destination.clicked.connect(self._choose_destination)
+        item_actions.addWidget(choose_destination)
         item_actions.addStretch(1)
         root.addLayout(item_actions)
 
@@ -119,6 +126,7 @@ class ConflictsScreen(QWidget):
         self._pending = {
             item.sample_id: item.conflict_action for item in plan.unresolved_conflicts()
         }
+        self._alternate_destinations = {}
         self.refresh()
 
     def refresh(self) -> None:
@@ -136,10 +144,12 @@ class ConflictsScreen(QWidget):
         )
         for item in conflicts:
             pending = self._pending.get(item.sample_id, ConflictAction.REVIEW)
+            alternate = self._alternate_destinations.get(item.sample_id)
+            destination = str(alternate) if alternate is not None else item.destination_path
             text = (
                 f"{Path(item.source_path).name}\n"
                 f"{item.source_path}\n"
-                f"→ {item.destination_path}\n"
+                f"→ {destination}\n"
                 f"Action: {pending}"
             )
             row = QListWidgetItem(text)
@@ -154,6 +164,34 @@ class ConflictsScreen(QWidget):
         self._pending[sample_id] = action
         self.refresh()
         # Reselect matching row after rebuild.
+        for index in range(self._list.count()):
+            item = self._list.item(index)
+            if item is not None and str(item.data(int(Qt.ItemDataRole.UserRole))) == str(sample_id):
+                self._list.setCurrentRow(index)
+                break
+
+    def _choose_destination(self) -> None:
+        row = self._list.currentItem()
+        if row is None or self._plan is None:
+            return
+        sample_id = EntityId(str(row.data(int(Qt.ItemDataRole.UserRole))))
+        planned = next(
+            (item for item in self._plan.items if item.sample_id == sample_id),
+            None,
+        )
+        if planned is None:
+            return
+        initial = planned.destination_path or planned.source_path
+        selected, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Choose Destination",
+            initial,
+        )
+        if not selected:
+            return
+        self._alternate_destinations[sample_id] = Path(selected).expanduser()
+        self._pending[sample_id] = ConflictAction.CHOOSE_DESTINATION
+        self.refresh()
         for index in range(self._list.count()):
             item = self._list.item(index)
             if item is not None and str(item.data(int(Qt.ItemDataRole.UserRole))) == str(sample_id):
@@ -175,5 +213,10 @@ class ConflictsScreen(QWidget):
             action = self._pending.get(item.sample_id, ConflictAction.REVIEW)
             if action is ConflictAction.REVIEW:
                 return
-        self._plan = self._service.resolve_conflicts(self._plan, self._pending)
+        self._plan = self._service.resolve_conflicts(
+            self._plan,
+            self._pending,
+            alternate_destinations=self._alternate_destinations,
+        )
+        self._alternate_destinations = {}
         self.apply_requested.emit()
