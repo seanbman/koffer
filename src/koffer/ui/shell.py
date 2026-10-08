@@ -555,15 +555,19 @@ class MainWindow(QMainWindow):
     def conflicts(self) -> ConflictsScreen:
         return self._conflicts
 
+    @property
     def metadata_editor(self) -> MetadataEditorScreen:
         return self._metadata_editor
 
+    @property
     def suggestions_review(self) -> SuggestionsReviewScreen:
         return self._suggestions
 
+    @property
     def sample_preparation(self) -> SamplePreparationScreen:
         return self._sample_preparation
 
+    @property
     def render_export(self) -> RenderExportScreen:
         return self._render_export
 
