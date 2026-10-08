@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QLabel, QListWidget, QPushButton, QWidget
+from PySide6.QtWidgets import QLabel, QLineEdit, QListWidget, QPushButton, QWidget
 
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_sine_wav
@@ -53,6 +53,18 @@ def test_s10_lists_pending_and_accepts_with_keyboard_actions(qtbot: object, tmp_
         scope = window.findChild(QLabel, "suggestionsReviewScope")
         assert scope is not None
         assert "scope" in scope.text().lower()
+
+        max_confidence = window.findChild(QLineEdit, "suggestionsReviewMaxConfidence")
+        apply_filters = window.findChild(QPushButton, "suggestionsReviewApplyFilters")
+        assert max_confidence is not None
+        assert apply_filters is not None
+        max_confidence.setText("0.0")
+        apply_filters.click()
+        assert listing.count() == 0
+
+        max_confidence.clear()
+        apply_filters.click()
+        assert listing.count() >= 1
 
         accept = window.findChild(QPushButton, "suggestionsReviewAcceptButton")
         assert accept is not None
