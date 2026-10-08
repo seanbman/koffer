@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QLabel, QListWidget, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QLabel,
+    QListWidget,
+    QPushButton,
+    QWidget,
+)
 
 from koffer.app_context import AppContext
 from koffer.domain.enums import SampleAvailability, SourceStatus
