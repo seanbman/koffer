@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QLabel, QListWidget, QPushButton, QWidget
+from PySide6.QtWidgets import QFileDialog, QLabel, QListWidget, QPushButton, QWidget
 
 from koffer.app_context import AppContext
 from koffer.domain.enums import SampleAvailability, SourceStatus
@@ -98,5 +98,86 @@ def test_s15_s17_s21_reachable_from_shell_navigation(qtbot: object, tmp_path: Pa
         assert version is not None
         assert "Koffer" in version.text()
         assert window.findChild(QPushButton, "aboutCreateDiagnosticsButton") is not None
+    finally:
+        context.close()
+
+
+
+def test_s15_locate_file_repairs_missing_sample_without_moving_audio(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    context = AppContext.open_temp(tmp_path / "recovery-locate")
+    root = tmp_path / "source"
+    root.mkdir()
+    replacement = root / "recovered.wav"
+    replacement.write_bytes(b"RIFF-RECOVERED")
+    now = utc_now_iso()
+    source = Source(
+        id=new_entity_id(),
+        display_name="Recovery Source",
+        root_path=str(root.resolve()),
+        enabled=True,
+        recursive=True,
+        status=SourceStatus.ONLINE,
+        created_at=now,
+        updated_at=now,
+    )
+    sample = Sample(
+        id=new_entity_id(),
+        source_id=source.id,
+        relative_path="missing.wav",
+        normalized_path_cache="missing.wav",
+        filename="missing.wav",
+        extension="wav",
+        size_bytes=1,
+        mtime_ns=1,
+        availability=SampleAvailability.MISSING,
+        favorite=False,
+        first_seen_at=now,
+        last_seen_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    conn = context.connection_factory.get_connection()
+    SourceRepository(conn).create(source)
+    SampleRepository(conn).create(sample)
+
+    try:
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.navigate("S15")
+
+        issues = window.findChild(QListWidget, "offlineRecoveryList")
+        locate = window.findChild(QPushButton, "recoveryLocateFileButton")
+        assert issues is not None
+        assert locate is not None
+        target_row = next(
+            index
+            for index in range(issues.count())
+            if "file_missing" in issues.item(index).text()
+        )
+        issues.setCurrentRow(target_row)
+        before = replacement.read_bytes()
+
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog,
+            "getOpenFileName",
+            lambda *_args, **_kwargs: (str(replacement), ""),
+        )
+        locate.click()
+
+        repaired = SampleRepository(conn).get(sample.id)
+        assert repaired is not None
+        assert repaired.relative_path == "recovered.wav"
+        assert repaired.filename == "recovered.wav"
+        assert repaired.availability is SampleAvailability.ONLINE
+        assert replacement.read_bytes() == before
+
+        issue_text = "\n".join(
+            issues.item(index).text() for index in range(issues.count())
+        )
+        assert "file_missing" not in issue_text
     finally:
         context.close()
