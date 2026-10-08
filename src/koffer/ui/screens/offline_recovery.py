@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -57,6 +60,12 @@ class OfflineRecoveryScreen(QWidget):
         root.addWidget(self._list, stretch=1)
 
         actions = QHBoxLayout()
+        self._locate_btn = QPushButton("Locate File")
+        self._locate_btn.setObjectName("recoveryLocateFileButton")
+        self._locate_btn.setProperty("class", "secondaryButton")
+        self._locate_btn.clicked.connect(self._locate_file)
+        actions.addWidget(self._locate_btn)
+
         self._recheck_btn = QPushButton("Recheck Source")
         self._recheck_btn.setObjectName("recoveryRecheckButton")
         self._recheck_btn.setProperty("class", "secondaryButton")
@@ -115,6 +124,36 @@ class OfflineRecoveryScreen(QWidget):
             return None
         data = item.data(Qt.ItemDataRole.UserRole)
         return data if isinstance(data, RecoveryIssue) else None
+
+    def _locate_file(self) -> None:
+        issue = self._selected_issue()
+        if issue is None or issue.sample_id is None:
+            return
+        if issue.condition not in {
+            RecoveryCondition.FILE_MISSING,
+            RecoveryCondition.FILE_MOVED,
+        }:
+            QMessageBox.information(
+                self,
+                "Not applicable",
+                "Locate File only applies to missing or moved Samples.",
+            )
+            return
+        selected, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Locate Sample File",
+        )
+        if not selected:
+            return
+        try:
+            self._recovery.locate_file(
+                EntityId(str(issue.sample_id)),
+                Path(selected),
+            )
+        except ApplicationError as exc:
+            QMessageBox.warning(self, "Locate failed", str(exc))
+            return
+        self.refresh()
 
     def _recheck_selected(self) -> None:
         issue = self._selected_issue()
