@@ -19,6 +19,7 @@ def _write_audio(dir_path: Path, name: str, payload: bytes = b"RIFF....WAVE") ->
     audio.write_bytes(payload)
     return audio
 
+
 def test_s12_shows_operation_destination_and_conflicts(qtbot: object, tmp_path: Path) -> None:
     context = AppContext.open_temp(tmp_path / "s12")
     pack = tmp_path / "pack"
@@ -61,6 +62,7 @@ def test_s12_shows_operation_destination_and_conflicts(qtbot: object, tmp_path: 
         assert not execute.isEnabled()
     finally:
         context.close()
+
 
 def test_s13_resolves_keep_both_and_returns_to_executable_s12(
     qtbot: object, tmp_path: Path
@@ -114,6 +116,7 @@ def test_s13_resolves_keep_both_and_returns_to_executable_s12(
         assert window.import_review.plan.items[0].conflict_action is ConflictAction.KEEP_BOTH
     finally:
         context.close()
+
 
 def test_reference_plan_states_plain_language_without_destination(
     qtbot: object, tmp_path: Path
