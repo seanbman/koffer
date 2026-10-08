@@ -430,6 +430,7 @@ class AnalysisService:
         limit: int = 500,
         offset: int = 0,
         min_confidence: float | None = None,
+        max_confidence: float | None = None,
         dimension: str | None = None,
     ) -> list[SuggestionReviewItem]:
         """S10 inbox: pending Suggestions with Sample path context."""
@@ -441,6 +442,8 @@ class AnalysisService:
         items: list[SuggestionReviewItem] = []
         for suggestion in suggestions:
             if min_confidence is not None and suggestion.confidence < min_confidence:
+                continue
+            if max_confidence is not None and suggestion.confidence > max_confidence:
                 continue
             if dimension is not None and suggestion.dimension != dimension:
                 continue
