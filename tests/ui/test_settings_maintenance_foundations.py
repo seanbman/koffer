@@ -15,7 +15,6 @@ from koffer.repositories.samples import SampleRepository
 from koffer.repositories.sources import SourceRepository
 from koffer.ui.shell import MainWindow
 
-
 def test_s15_s17_s21_reachable_from_shell_navigation(qtbot: object, tmp_path: Path) -> None:
     context = AppContext.open_temp(tmp_path / "phase12-ui")
     try:
@@ -100,7 +99,6 @@ def test_s15_s17_s21_reachable_from_shell_navigation(qtbot: object, tmp_path: Pa
         assert window.findChild(QPushButton, "aboutCreateDiagnosticsButton") is not None
     finally:
         context.close()
-
 
 
 def test_s15_locate_file_repairs_missing_sample_without_moving_audio(
