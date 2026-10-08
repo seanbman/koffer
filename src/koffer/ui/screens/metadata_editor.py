@@ -7,9 +7,9 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
-    QFileDialog,
     QLabel,
     QLineEdit,
     QListWidget,
