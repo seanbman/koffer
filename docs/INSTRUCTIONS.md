@@ -103,7 +103,14 @@ Dreadnought must ingest, in this order:
 18. `docs/24-operations-diagnostics-and-recovery.md`
 19. `docs/25-order-template.md`
 20. `docs/26-command-reference.md`
-21. relevant domain chapters 01–10 and matching SVG mockups.
+21. `docs/29-codex-product-rebuild-directive.md`
+22. `docs/30-visual-product-redesign.md`
+23. `docs/31-sample-workbench-waveform-editor.md`
+24. `docs/32-local-ml-classification-spec.md`
+25. `docs/33-user-manual.md`
+26. `docs/34-screen-by-screen-remediation.md`
+27. `docs/35-definition-of-done-and-acceptance.md`
+28. relevant domain chapters 01–10 and matching SVG mockups.
 
 ## Branch contract
 
@@ -213,6 +220,23 @@ TOKENS CAMPAIGN: 312,600
 BLOCKERS: none
 NEXT: S01 real search model + Inspector binding
 ~~~
+
+## Current remediation mandate
+
+Before resuming ordinary roadmap completion, repair the current `dev` implementation according to docs 29–35.
+
+The following are P0 until proven complete:
+
+- a direct-manipulation Edit Sound waveform workbench;
+- plainly reachable classification/tag/embedded-metadata editing;
+- model installation plus actual local semantic inference;
+- automatic semantic analysis for new Samples when enabled;
+- existing-library semantic backfill;
+- mapped Suggestions and real embedding-based Similar Sounds;
+- removal of raw/debug evidence from primary user surfaces;
+- coherent action hierarchy and richer semantically colored visual design.
+
+A green QA run does not waive these requirements.
 
 ## Product-complete exit criteria
 

@@ -173,9 +173,11 @@ The implementation must support:
 - top-k label output;
 - embedding output.
 
-The application remains fully usable without the semantic model. In that state:
+The application remains usable without the semantic model. In that degraded state:
 - deterministic Suggestions continue;
 - Similar Sounds explains that semantic embeddings are unavailable and offers model setup.
+
+This degraded mode is not evidence that V1 semantic analysis is optional. Release acceptance requires the model-enabled path in `32-local-ml-classification-spec.md`: install/verify, automatic new-Sample semantic analysis when enabled, library backfill, mapped Suggestions, embeddings, and Similar Sounds.
 
 ## PANNs policy
 
@@ -268,3 +270,12 @@ Before final release, fixtures must include:
 - semantic provider missing;
 - semantic provider success;
 - similarity query with known synthetic ranking invariants.
+
+
+## Sample Workbench preview contract
+
+S08 is a direct-manipulation waveform editor as specified in `31-sample-workbench-waveform-editor.md`.
+
+The render graph remains recipe-driven and non-destructive, but UI gestures such as trim/fade handle movement update the recipe through a testable controller/model. Numeric fields are synchronized alternatives, not the primary editing experience.
+
+Preview rendering is debounced/cancelable so rapid UI changes do not build an unbounded queue of stale temporary renders.

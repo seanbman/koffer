@@ -170,3 +170,23 @@ Koffer is the intended product when a new user can:
 9. render a new copy;
 10. disconnect the Source drive and still understand the library state;
 11. reconnect it and recover without rebuilding the user's organization.
+
+
+## Current V1 correction — editing, intelligence, and polish
+
+The finished V1 is not satisfied by a searchable library with placeholder editing/analysis surfaces.
+
+V1 additionally requires:
+
+- direct-manipulation waveform editing through **Edit Sound**;
+- persistent non-destructive edit recipes with A/B preview and Export Copy;
+- plainly reachable editing of classifications, user tags, supported embedded metadata, and artwork;
+- a working local semantic model installation/runtime path;
+- automatic model analysis of newly indexed Samples when enabled;
+- existing-library semantic backfill;
+- mapped, reviewable Suggestions;
+- embedding-based Similar Sounds;
+- plain-language primary UI with technical evidence behind advanced disclosures;
+- the richer visual and action hierarchy defined in docs 30–35.
+
+The application may degrade gracefully when the local model is absent, but a release candidate is not V1-complete until the model-enabled acceptance scenario passes end-to-end.

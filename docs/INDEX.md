@@ -26,6 +26,15 @@ Koffer is a **full-fledged, dark-themed Linux desktop application** for discover
 18. [Command Reference](26-command-reference.md)
 19. [Service and Interface Contracts](27-service-interfaces.md)
 20. [Product Defaults, Menus, and Shortcuts](28-defaults-menus-shortcuts.md)
+21. [Codex Product Rebuild Directive](29-codex-product-rebuild-directive.md)
+22. [Visual Product Redesign](30-visual-product-redesign.md)
+23. [Sample Workbench and Waveform Editor](31-sample-workbench-waveform-editor.md)
+24. [Local ML Classification Specification](32-local-ml-classification-spec.md)
+25. [User Manual](33-user-manual.md)
+26. [Screen-by-Screen Remediation](34-screen-by-screen-remediation.md)
+27. [Definition of Done and Acceptance Matrix](35-definition-of-done-and-acceptance.md)
+
+**Current remediation reading order:** after files 1–20 above, Codex must read 29–35 before modifying user-facing code. Files 29–35 clarify the current product correction and override any earlier permissive interpretation that would allow a form-only audio editor, hidden/unreachable metadata editing, inactive semantic ML, debug-looking primary UI, or visually haphazard action placement.
 
 Then read the relevant domain manual chapter and matching SVG mockup for the Order.
 
@@ -130,7 +139,8 @@ If two documents appear to disagree:
 2. Product/end-state and acceptance docs govern user-visible behavior and safety.
 3. Engineering chapters 16–28 govern implementation mechanics.
 4. A domain chapter governs feature-specific details.
-5. Mockups govern layout/hierarchy, not hidden behavior.
+5. Files 29–35 govern the current remediation campaign where they strengthen or clarify earlier requirements.
+6. Mockups govern layout/hierarchy, not hidden behavior.
 
 Do not silently rewrite a higher-authority requirement to match existing code.
 

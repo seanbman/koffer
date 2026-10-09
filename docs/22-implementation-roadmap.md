@@ -295,3 +295,24 @@ At the end of every phase:
 Later-phase features may create interfaces/stubs earlier when required for architecture, but no stub counts as product completion.
 
 Do not prematurely implement Phase 11 model complexity before the library/search/file safety foundation is green.
+
+
+## Current remediation campaign before release progression
+
+The existing implementation reached broad automated coverage before meeting product usability. Before treating phases as complete, execute the remediation contract in docs 29–35.
+
+Required remediation sequence:
+
+1. visual token/shell/action-hierarchy cleanup;
+2. S07 Sample hierarchy and plain-language classification/Suggestions;
+3. S08 Edit Sound direct waveform workbench;
+4. S09 classification/tag/embedded-metadata editing cleanup;
+5. real local semantic model install/runtime;
+6. automatic semantic scheduling + existing-library backfill;
+7. S10 friendly Suggestions review;
+8. S11 real embedding-backed Similar Sounds;
+9. S00–S21 visual/state pass;
+10. packaging with FFmpeg/model setup validation;
+11. docs 35 acceptance scenarios.
+
+Phase labels are not proof. Re-run the gates against actual current behavior.

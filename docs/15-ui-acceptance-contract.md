@@ -101,20 +101,26 @@ Every Koffer-owned screen must:
 
 ## S07 acceptance
 
-- all Sample data has provenance: factual, embedded, confirmed, suggested, or user tag;
-- waveform/playback remain usable;
-- file path and availability are visible;
-- preparation recipe presence is visible;
-- Edit Metadata and Prepare are separate actions.
+- all Sample data has provenance internally, but primary presentation uses plain user language;
+- waveform/playback remain usable and visually prominent;
+- confirmed classifications are editable/reachable as chips or an obvious edit action;
+- pending Suggestions are understandable without raw evidence JSON;
+- file path/technical details are available without dominating the page;
+- edit-recipe presence is summarized in plain language;
+- primary actions are Edit Sound, Edit Info, Find Similar, and Add to Collection;
+- low-frequency Organize/Reveal actions do not compete with primary actions.
 
 ## S08 acceptance
 
+- the user edits through a large direct-manipulation waveform, not only numeric form controls;
+- draggable trim handles, fade handles, seek, zoom, and preview loop are implemented;
+- gain/normalize, pitch, stretch, reverse, and output preparation are reachable and audible through preview;
+- A/B Original vs Edited works;
+- Undo/Redo/Reset and dirty/saved state are clear;
 - no control writes the source as it is adjusted;
-- waveform trim state is visible;
-- reset restores recipe without touching source;
-- source and recipe are identified;
-- preview reflects recipe;
-- render/export is a separate explicit workflow.
+- Save Recipe persists non-destructive state;
+- Export Copy is a separate explicit workflow;
+- source hash remains unchanged through editor operations.
 
 ## S09 acceptance
 
@@ -127,11 +133,14 @@ Every Koffer-owned screen must:
 
 ## S10 acceptance
 
-- confidence and evidence are inspectable;
+- confidence and evidence are inspectable through friendly “Why?” explanations;
+- raw structured evidence is advanced detail, not the default panel;
+- selected Sample waveform/preview is available during review;
+- confidence range including low-confidence focus works;
 - accept/reject/edit are keyboard accessible;
 - accepted Suggestions become confirmed classifications;
 - rejection does not erase provenance/history needed for later analysis quality review;
-- batch actions show scope.
+- batch actions show exact scope.
 
 ## S11 acceptance
 
@@ -223,3 +232,10 @@ A screen is done only when:
 - background work is non-blocking;
 - tests cover the critical user path;
 - documentation and mockup still describe the implementation truth.
+
+
+## Current global visual acceptance
+
+Also apply docs 30, 34, and 35.
+
+A screen is not done if it has dead-looking text areas, arbitrary same-weight button rows, debug/internal language on the default path, or a technically functional but visibly incoherent layout.

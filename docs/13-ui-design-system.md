@@ -4,7 +4,7 @@
 
 Koffer looks like a serious piece of music-production utility software without imitating a DAW.
 
-The interface is dark, dense, geometric, and quiet. Clay/amber accents connect the application to the Koffer identity without turning the UI orange. The main content is data, waveforms, and user decisions.
+The interface is dark, dense, geometric, and deliberate. Clay/amber remains the Koffer brand accent, but Koffer now uses a richer semantic palette for analysis, playback, editing, confirmation, organization, warning, and destructive state. The main content is audio, waveforms, classifications, and user decisions—not raw implementation data.
 
 ## Reference canvas
 
@@ -41,6 +41,10 @@ Reference regions:
 | Yellow | `#D7B65E` | warning / pending review |
 | Red | `#D36B6B` | destructive / failure |
 | Blue | `#6FA3D8` | informational / analysis |
+| Cyan | `#54C6D8` | playback / time / playhead |
+| Violet | `#9B7BD8` | non-destructive Edit Sound state |
+| Magenta | `#C66AA3` | pitch / key / tonal metadata |
+| Teal | `#5FB7A2` | Collections / organization |
 
 Status colors always have an icon, label, or shape difference so color is never the only information carrier.
 
@@ -205,3 +209,14 @@ Motion is restrained:
 ## Mockup authority
 
 The mockups are visual acceptance references, not screenshots to clone blindly. If implementation must adapt to platform metrics, it preserves information hierarchy, action grouping, density, and pane relationships first.
+
+
+## Current visual remediation
+
+`30-visual-product-redesign.md` is the detailed current visual contract.
+
+Primary user screens must not present raw JSON, hashes, internal IDs, provider/version strings, or generic diagnostic textareas by default. Such material belongs in Analysis Details, File Details, Activity detail, or Diagnostics.
+
+Buttons are grouped by intent and hierarchy. More than four same-weight actions in a row is presumed a design defect and must be justified or reorganized.
+
+The Sample Workbench makes the waveform visually dominant and uses direct manipulation. A long vertical form of spin boxes is not an acceptable substitute.

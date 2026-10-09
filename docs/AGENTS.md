@@ -14,7 +14,16 @@ The canonical product-definition set is:
 - `13-ui-design-system.md`
 - `14-navigation-and-user-flows.md`
 - `15-ui-acceptance-contract.md`
+- `29-codex-product-rebuild-directive.md`
+- `30-visual-product-redesign.md`
+- `31-sample-workbench-waveform-editor.md`
+- `32-local-ml-classification-spec.md`
+- `33-user-manual.md`
+- `34-screen-by-screen-remediation.md`
+- `35-definition-of-done-and-acceptance.md`
 - `mockups/README.md` and the matching numbered SVG for each Screen ID.
+
+For the current remediation campaign, files 29–35 are mandatory reading and explicitly reject “widget exists” completion.
 
 All implementation Orders must cite the relevant roadmap phase, Screen ID(s) when applicable, architecture modules, acceptance criteria, and tests.
 
@@ -452,6 +461,14 @@ UI should be:
 - clear about selected and focused state.
 
 Do not introduce mobile-first navigation patterns.
+
+### Current UX correction
+
+The application must not look like a database/admin utility. User-facing primary surfaces use structured cards, chips, waveforms, plain-language state, deliberate color, and coherent action grouping.
+
+Raw JSON/evidence/provider internals are advanced diagnostics, not normal Sample UI.
+
+The primary audio-editing action is **Edit Sound**, opening the direct-manipulation Sample Workbench in `31-sample-workbench-waveform-editor.md`.
 
 Do not make important workflows depend on hover alone.
 
