@@ -1,4 +1,4 @@
-"""AnalysisService: deterministic analysis queue + Suggestion review (docs/06, docs/27)."""
+"""AnalysisService: deterministic + semantic analysis queue + Suggestion review."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from koffer.analysis.embeddings import EmbeddingStore
+from koffer.analysis.evidence import build_evidence
 from koffer.analysis.heuristics import DIM_BPM, DIM_KEY
 from koffer.analysis.pipeline import (
     DETERMINISTIC_PIPELINE_VERSION,
@@ -15,6 +17,7 @@ from koffer.analysis.pipeline import (
     DETERMINISTIC_PROVIDER_VERSION,
     run_deterministic_analysis,
 )
+from koffer.analysis.semantic import SemanticProvider, map_panns_labels
 from koffer.domain.enums import (
     AnalysisDepth,
     AnalysisRunState,
@@ -48,10 +51,13 @@ __all__ = [
     "AnalysisService",
     "AnalysisState",
     "AnalysisStateKind",
+    "FULL_PIPELINE_VERSION",
     "SuggestionAction",
     "SuggestionActionKind",
     "SuggestionReviewItem",
 ]
+
+FULL_PIPELINE_VERSION = "deterministic+semantic-v1"
 
 
 class AnalysisStateKind(StrEnum):
@@ -106,22 +112,29 @@ _MUSICAL_DIMENSIONS = {DIM_BPM, DIM_KEY}
 
 
 class AnalysisService:
-    """Queue deterministic analysis and review Suggestions without embedded writes."""
+    """Queue analysis and review Suggestions without embedded writes or source mutation."""
 
     def __init__(
         self,
         connection_factory: ConnectionFactory,
         scheduler: JobScheduler | None = None,
+        *,
+        semantic_provider: SemanticProvider | None = None,
+        embedding_store: EmbeddingStore | None = None,
+        cache_dir: Path | None = None,
     ) -> None:
         self._factory = connection_factory
         self._scheduler = scheduler
+        self._semantic_provider = semantic_provider
+        self._embedding_store = embedding_store
+        self._cache_dir = Path(cache_dir) if cache_dir is not None else None
 
     def queue_for_sample(
         self,
         sample_id: EntityId,
         depth: AnalysisDepth = AnalysisDepth.DETERMINISTIC,
     ) -> EntityId:
-        """Enqueue deterministic analysis for one Sample. Returns Job id."""
+        """Enqueue analysis for one Sample. Returns Job id."""
         from koffer.jobs.scheduler import JobSpec
 
         if depth not in {AnalysisDepth.DETERMINISTIC, AnalysisDepth.FULL}:
@@ -132,11 +145,13 @@ class AnalysisService:
             raise NotFoundError(f"Sample not found: {sample_id}")
         if self._scheduler is None:
             raise ValidationError("JobScheduler is required to queue analysis")
-        # FULL currently queues deterministic analysis; semantic Suggestions fuse later.
+        scope: dict[str, object] = {"sample_ids": [str(sample_id)], "depth": str(depth)}
+        if self._cache_dir is not None:
+            scope["cache_dir"] = str(self._cache_dir)
         return self._scheduler.submit(
             JobSpec(
                 type=JobType.DETERMINISTIC_ANALYSIS,
-                scope={"sample_ids": [str(sample_id)], "depth": str(depth)},
+                scope=scope,
             )
         )
 
@@ -156,22 +171,34 @@ class AnalysisService:
         samples = SampleRepository(conn).list_by_source(source_id)
         if self._scheduler is None:
             raise ValidationError("JobScheduler is required to queue analysis")
+        scope: dict[str, object] = {
+            "sample_ids": [str(s.id) for s in samples],
+            "source_id": str(source_id),
+            "depth": str(depth),
+        }
+        if self._cache_dir is not None:
+            scope["cache_dir"] = str(self._cache_dir)
         return self._scheduler.submit(
             JobSpec(
                 type=JobType.DETERMINISTIC_ANALYSIS,
-                scope={
-                    "sample_ids": [str(s.id) for s in samples],
-                    "source_id": str(source_id),
-                    "depth": str(depth),
-                },
+                scope=scope,
             )
         )
 
-    def analyze_sample(self, sample_id: EntityId) -> EntityId:
-        """Run deterministic analysis synchronously for one Sample. Returns analysis_run id.
+    def analyze_sample(
+        self,
+        sample_id: EntityId,
+        depth: AnalysisDepth = AnalysisDepth.DETERMINISTIC,
+    ) -> EntityId:
+        """Run analysis synchronously for one Sample. Returns analysis_run id.
 
         Never writes embedded metadata. Never overwrites confirmed classifications.
+        FULL depth runs local semantic inference when the provider is available;
+        unavailable semantic stays degraded without failing deterministic results.
         """
+        if depth not in {AnalysisDepth.DETERMINISTIC, AnalysisDepth.FULL}:
+            raise ValidationError(f"Unsupported analysis depth: {depth}")
+
         conn = self._factory.get_connection()
         samples = SampleRepository(conn)
         sources = SourceRepository(conn)
@@ -196,10 +223,13 @@ class AnalysisService:
 
         now = utc_now_iso()
         run_id = new_entity_id()
+        pipeline_version = (
+            FULL_PIPELINE_VERSION if depth is AnalysisDepth.FULL else DETERMINISTIC_PIPELINE_VERSION
+        )
         run = AnalysisRun(
             id=run_id,
             sample_id=sample_id,
-            pipeline_version=DETERMINISTIC_PIPELINE_VERSION,
+            pipeline_version=pipeline_version,
             source_fingerprint=fingerprint,
             state=AnalysisRunState.RUNNING,
             started_at=now,
@@ -244,6 +274,7 @@ class AnalysisService:
             dimensions=proposal_dims,
         )
 
+        pending_pairs: set[tuple[str, str]] = set()
         for proposal in result.proposals:
             # Never overwrite confirmed classifications: skip an already-confirmed
             # dimension+value pair. Other values on the same dimension may still be
@@ -282,15 +313,229 @@ class AnalysisService:
                     created_at=now,
                 )
             )
+            pending_pairs.add((proposal.dimension, proposal.proposed_value))
 
+        semantic_error: str | None = None
+        if depth is AnalysisDepth.FULL:
+            semantic_error = self._apply_semantic_pass(
+                sample_id=sample_id,
+                run_id=run_id,
+                media_path=media_path,
+                fingerprint=fingerprint,
+                confirmed_pairs=confirmed_pairs,
+                pending_pairs=pending_pairs,
+                features=features,
+                suggestions=suggestions,
+                now=now,
+            )
+
+        error_code = result.bpm_key_error if not result.bpm_key_ok else None
+        if semantic_error and error_code is None:
+            error_code = semantic_error
         completed = replace(
             run,
             state=AnalysisRunState.COMPLETED,
             completed_at=utc_now_iso(),
-            error_code=result.bpm_key_error if not result.bpm_key_ok else None,
+            error_code=error_code,
         )
         runs.update(completed)
         return run_id
+
+    def _apply_semantic_pass(
+        self,
+        *,
+        sample_id: EntityId,
+        run_id: EntityId,
+        media_path: Path | None,
+        fingerprint: str,
+        confirmed_pairs: set[tuple[str, str]],
+        pending_pairs: set[tuple[str, str]],
+        features: AnalysisFeatureRepository,
+        suggestions: SuggestionRepository,
+        now: str,
+    ) -> str | None:
+        """Run semantic inference for FULL analysis. Never mutates source audio.
+
+        Returns an optional non-fatal error code when semantic is unavailable/fails.
+        """
+        provider = self._semantic_provider
+        store = self._embedding_store
+        if provider is None:
+            features.create(
+                AnalysisFeature(
+                    id=new_entity_id(),
+                    analysis_run_id=run_id,
+                    name="semantic_status",
+                    value_json=json.dumps(
+                        {"available": False, "reason": "no_provider_configured"},
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    provider_version="none",
+                )
+            )
+            return "semantic_unavailable"
+
+        if not provider.is_available():
+            reason = provider.unavailable_reason() or "model unavailable"
+            features.create(
+                AnalysisFeature(
+                    id=new_entity_id(),
+                    analysis_run_id=run_id,
+                    name="semantic_status",
+                    value_json=json.dumps(
+                        {"available": False, "reason": reason},
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    provider_version=provider.model_version,
+                )
+            )
+            return "semantic_unavailable"
+
+        if media_path is None or not media_path.is_file():
+            features.create(
+                AnalysisFeature(
+                    id=new_entity_id(),
+                    analysis_run_id=run_id,
+                    name="semantic_status",
+                    value_json=json.dumps(
+                        {"available": False, "reason": "media_missing"},
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    provider_version=provider.model_version,
+                )
+            )
+            return "semantic_media_missing"
+
+        # Reuse a same-fingerprint embedding when present; still refresh Suggestions
+        # only when we re-infer. Reuse skips infer entirely.
+        if store is not None:
+            existing = store.get(sample_id, provider.model_version)
+            if existing is not None and existing.source_fingerprint == fingerprint:
+                features.create(
+                    AnalysisFeature(
+                        id=new_entity_id(),
+                        analysis_run_id=run_id,
+                        name="semantic_status",
+                        value_json=json.dumps(
+                            {
+                                "available": True,
+                                "reused_embedding": True,
+                                "provider": provider.provider_id,
+                                "model_version": provider.model_version,
+                                "source_fingerprint": fingerprint,
+                                "embedding_dim": existing.dimensions,
+                            },
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ),
+                        provider_version=provider.model_version,
+                    )
+                )
+                return None
+
+        try:
+            inference = provider.infer(media_path)
+        except Exception as exc:  # noqa: BLE001 — semantic failure must not abort deterministic
+            features.create(
+                AnalysisFeature(
+                    id=new_entity_id(),
+                    analysis_run_id=run_id,
+                    name="semantic_status",
+                    value_json=json.dumps(
+                        {
+                            "available": False,
+                            "reason": type(exc).__name__,
+                            "detail": str(exc)[:200],
+                        },
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    provider_version=provider.model_version,
+                )
+            )
+            return "semantic_inference_failed"
+
+        if store is not None:
+            store.put(
+                sample_id,
+                model_version=inference.model_version,
+                source_fingerprint=fingerprint,
+                vector=inference.embedding,
+            )
+
+        top_labels = [
+            {"label": item.label, "score": float(item.score)} for item in inference.labels
+        ]
+        features.create(
+            AnalysisFeature(
+                id=new_entity_id(),
+                analysis_run_id=run_id,
+                name="semantic_status",
+                value_json=json.dumps(
+                    {
+                        "available": True,
+                        "reused_embedding": False,
+                        "provider": inference.provider,
+                        "model_version": inference.model_version,
+                        "source_fingerprint": fingerprint,
+                        "embedding_dim": int(inference.embedding.shape[0]),
+                        "top_labels": top_labels,
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+                provider_version=inference.model_version,
+            )
+        )
+
+        mapped = map_panns_labels(inference.labels)
+        for dimension, value, score in mapped:
+            if dimension not in _CLASSIFICATION_DIMENSIONS:
+                continue
+            if (dimension, value) in confirmed_pairs:
+                continue
+            if (dimension, value) in pending_pairs:
+                continue
+            confidence = max(0.0, min(float(score), 0.99))
+            provider_label = value
+            for item in inference.labels:
+                mapped_one = map_panns_labels((item,))
+                if mapped_one and mapped_one[0][0] == dimension and mapped_one[0][1] == value:
+                    provider_label = item.label
+                    break
+            evidence = build_evidence(
+                semantic={
+                    "label": provider_label,
+                    "score": float(score),
+                    "provider": inference.provider,
+                    "model_version": inference.model_version,
+                    "source_fingerprint": fingerprint,
+                },
+                plain_language=(
+                    f"Local AI heard '{provider_label}' and suggests {value} "
+                    f"({confidence:.0%} confidence). Audio stayed on this computer."
+                ),
+            )
+            suggestions.create(
+                Suggestion(
+                    id=new_entity_id(),
+                    sample_id=sample_id,
+                    dimension=dimension,
+                    proposed_value=value,
+                    confidence=confidence,
+                    status=SuggestionStatus.PENDING,
+                    evidence_json=evidence,
+                    provider=inference.provider,
+                    provider_version=inference.model_version,
+                    analysis_run_id=run_id,
+                    created_at=now,
+                )
+            )
+            pending_pairs.add((dimension, value))
+        return None
 
     def accept_suggestion(
         self,

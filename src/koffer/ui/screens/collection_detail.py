@@ -271,7 +271,7 @@ class CollectionDetailScreen(QWidget):
         open_detail.clicked.connect(self._open_selected)
         inspector_actions.addWidget(open_detail)
 
-        prepare = QPushButton("Prepare")
+        prepare = QPushButton("Edit Sound")
         prepare.setObjectName("collectionPrepareSampleButton")
         prepare.setProperty("class", "primaryButton")
         prepare.clicked.connect(self._prepare_selected)

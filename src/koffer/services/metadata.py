@@ -12,7 +12,13 @@ from koffer.audio.metadata import (
     capabilities_for_path,
     read_embedded,
 )
-from koffer.domain.enums import ArtworkAction, JobType, MetadataWriteTarget
+from koffer.domain.enums import (
+    ArtworkAction,
+    ClassificationDimension,
+    ClassificationSource,
+    JobType,
+    MetadataWriteTarget,
+)
 from koffer.domain.errors import NotFoundError, ValidationError
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.metadata_write import (
@@ -23,11 +29,13 @@ from koffer.domain.metadata_write import (
     MetadataWriteRequest,
     PlannedMetadataItem,
 )
+from koffer.domain.models import Classification
 from koffer.domain.timestamps import utc_now_iso
 from koffer.filesystem.hashing import content_fingerprint
 from koffer.filesystem.operations import keep_both_destination, path_fingerprint
 from koffer.jobs.scheduler import JobScheduler, JobSpec
 from koffer.persistence.connection import ConnectionFactory
+from koffer.repositories.classifications import ClassificationRepository
 from koffer.repositories.job_items import JobItem, JobItemRepository
 from koffer.repositories.jobs import JobRepository
 from koffer.repositories.samples import SampleRepository
@@ -219,6 +227,97 @@ class MetadataService:
             koffer_tags=tuple(ordered_tags),
             limitations=tuple(dict.fromkeys(limitations)),
         )
+
+    def get_library_metadata(
+        self, sample_ids: list[EntityId]
+    ) -> tuple[dict[ClassificationDimension, tuple[str, ...]], tuple[str, ...]]:
+        """Return editable Koffer classifications and tags for the selected Samples."""
+        if not sample_ids:
+            raise ValidationError("get_library_metadata requires at least one sample_id")
+        conn = self._factory.get_connection()
+        samples = SampleRepository(conn)
+        classifications = ClassificationRepository(conn)
+        tags = TagRepository(conn)
+        values: dict[ClassificationDimension, list[str]] = {
+            dimension: [] for dimension in ClassificationDimension
+        }
+        tag_values: list[str] = []
+        for sample_id in sample_ids:
+            if samples.get(sample_id) is None:
+                raise NotFoundError(f"Sample not found: {sample_id}")
+            for item in classifications.list_for_sample(sample_id):
+                if item.value not in values[item.dimension]:
+                    values[item.dimension].append(item.value)
+            for tag in tags.list_display_names_for_sample(sample_id):
+                if tag.casefold() not in {existing.casefold() for existing in tag_values}:
+                    tag_values.append(tag)
+        return {dimension: tuple(items) for dimension, items in values.items()}, tuple(tag_values)
+
+    def save_library_metadata(
+        self,
+        sample_ids: list[EntityId],
+        classifications: dict[ClassificationDimension, tuple[str, ...]],
+        tags: tuple[str, ...],
+    ) -> None:
+        """Replace user-editable library metadata atomically; never writes audio."""
+        if not sample_ids:
+            raise ValidationError("save_library_metadata requires at least one sample_id")
+        conn = self._factory.get_connection()
+        samples = SampleRepository(conn)
+        classification_repo = ClassificationRepository(conn)
+        tag_repo = TagRepository(conn)
+        normalized: dict[ClassificationDimension, tuple[str, ...]] = {}
+        for dimension in ClassificationDimension:
+            cleaned: list[str] = []
+            seen: set[str] = set()
+            for value in classifications.get(dimension, ()):
+                text = value.strip()
+                key = text.casefold()
+                if text and key not in seen:
+                    seen.add(key)
+                    cleaned.append(text)
+            normalized[dimension] = tuple(cleaned)
+        clean_tags: list[str] = []
+        seen_tags: set[str] = set()
+        for tag in tags:
+            text = tag.strip()
+            key = text.casefold()
+            if text and key not in seen_tags:
+                seen_tags.add(key)
+                clean_tags.append(text)
+
+        # Claim the single SQLite writer slot before replacing rows.  The
+        # scheduler may still be finishing probe/analysis jobs after the
+        # source scan itself completes; an immediate transaction waits for
+        # that writer cleanly instead of failing on the first INSERT.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            now = utc_now_iso()
+            for sample_id in sample_ids:
+                if samples.get(sample_id) is None:
+                    raise NotFoundError(f"Sample not found: {sample_id}")
+                existing = classification_repo.list_for_sample(sample_id)
+                for dimension in ClassificationDimension:
+                    for item in existing:
+                        if item.dimension is dimension:
+                            classification_repo.delete(item.id)
+                    for value in normalized[dimension]:
+                        classification_repo.create(
+                            Classification(
+                                id=new_entity_id(),
+                                sample_id=sample_id,
+                                dimension=dimension,
+                                value=value,
+                                source=ClassificationSource.USER,
+                                created_at=now,
+                                updated_at=now,
+                            )
+                        )
+                tag_repo.replace_for_sample(sample_id, tuple(clean_tags))
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
     def plan_write(self, request: MetadataWriteRequest) -> MetadataWritePlan:
         """Plan an explicit UPDATE_ORIGINAL or WRITE_TO_COPY metadata mutation."""

@@ -16,6 +16,8 @@ GREEN = "#67B983"
 YELLOW = "#D7B65E"
 RED = "#D36B6B"
 BLUE = "#6FA3D8"
+VIOLET = "#9B7BD8"
+MAGENTA = "#C77DBA"
 
 SHELL_STYLESHEET = f"""
 QWidget#kofferShell {{
@@ -156,6 +158,11 @@ QLabel#pageTitle {{
 }}
 QLabel#bodyText {{
     color: {MUTED};
+    font-size: 13px;
+}}
+QLabel#settingsAnalysisConcurrencyLabel,
+QLabel#settingsCacheLimitLabel {{
+    color: {TEXT};
     font-size: 13px;
 }}
 QLabel#promiseTitle {{
@@ -367,6 +374,35 @@ QLabel#provenanceHeading {{
     color: {TEXT};
     font-size: 11px;
     font-weight: 700;
+}}
+QLabel#sampleDetailIdentity {{
+    color: {TEXT};
+    font-size: 13px;
+}}
+QGroupBox {{
+    color: {TEXT};
+    background-color: {SURFACE_1};
+    border: 1px solid {BORDER};
+    border-radius: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    font-weight: 600;
+}}
+QGroupBox::title {{
+    color: {TEXT};
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}}
+QToolButton {{
+    color: {TEXT};
+    background-color: {SURFACE_2};
+    border: 1px solid {BORDER};
+    border-radius: 5px;
+    padding: 6px 10px;
+}}
+QToolButton:hover {{
+    background-color: {SURFACE_3};
 }}
 QWidget#contentStatePanel {{
     background-color: {SURFACE_1};

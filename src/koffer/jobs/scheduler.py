@@ -9,10 +9,11 @@ import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any
 
 from koffer.domain.enums import JobLane, JobState, JobType
-from koffer.domain.errors import NotFoundError, UnsupportedOperationError
+from koffer.domain.errors import NotFoundError, UnsupportedOperationError, ValidationError
 from koffer.domain.ids import EntityId, new_entity_id
 from koffer.domain.models import Job
 from koffer.domain.timestamps import utc_now_iso
@@ -93,8 +94,10 @@ class JobScheduler:
         maintenance_workers: int = 1,
         progress_min_interval_s: float = 0.05,
         recover_on_start: bool = True,
+        cache_dir: Path | None = None,
     ) -> None:
         self._factory = connection_factory
+        self._cache_dir = Path(cache_dir) if cache_dir is not None else None
         analysis_n = (
             default_analysis_workers() if analysis_workers is None else max(1, analysis_workers)
         )
@@ -402,6 +405,8 @@ class JobScheduler:
         probe_scope: dict[str, Any] = {"sample_ids": sample_ids}
         if isinstance(source_id, str) and source_id:
             probe_scope["source_id"] = source_id
+        if self._cache_dir is not None:
+            probe_scope["cache_dir"] = str(self._cache_dir)
         self.submit(JobSpec(type=JobType.TECHNICAL_PROBE, scope=probe_scope))
 
     def _run_technical_probe(self, job_id: EntityId) -> Job:
@@ -416,9 +421,57 @@ class JobScheduler:
                 return cancelled
             completed = run_technical_probe(conn, job, progress=self._progress)
             self._emit_job(completed, force=True)
+            self._queue_discovery_analysis(completed)
             return completed
         finally:
             conn.close()
+
+    def _queue_discovery_analysis(self, probe_job: Job) -> None:
+        """After a successful probe, queue deterministic or FULL analysis from settings.
+
+        FULL semantic analysis runs only when Local AI is installed, verified, and
+        enabled. Otherwise automatic analysis stays deterministic-only so import
+        remains usable without the model.
+        """
+        if probe_job.state not in {JobState.COMPLETED, JobState.COMPLETED_WITH_ERRORS}:
+            return
+        try:
+            summary = json.loads(probe_job.summary_json or "{}")
+        except json.JSONDecodeError:
+            return
+        raw_ids = summary.get("playable_sample_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return
+        sample_ids = [EntityId(str(item)) for item in raw_ids if item]
+        if not sample_ids:
+            return
+        from koffer.config.paths import resolve_app_paths
+        from koffer.services.local_ai import LocalAiService
+        from koffer.services.settings import SettingsService
+
+        settings = SettingsService(self._factory)
+        try:
+            scope = json.loads(probe_job.scope_json)
+        except json.JSONDecodeError:
+            scope = {}
+        cache_raw = scope.get("cache_dir")
+        if isinstance(cache_raw, str) and cache_raw:
+            cache_dir = Path(cache_raw)
+        elif self._cache_dir is not None:
+            cache_dir = self._cache_dir
+        else:
+            cache_dir = resolve_app_paths().cache_dir
+        local_ai = LocalAiService(
+            self._factory,
+            settings,
+            cache_dir=cache_dir,
+            scheduler=self,
+        )
+        try:
+            local_ai.queue_discovery_analysis(sample_ids)
+        except ValidationError:
+            # Settings/provider may refuse; discovery itself already succeeded.
+            return
 
     def _run_deterministic_analysis(self, job_id: EntityId) -> Job:
         conn = self._factory.open_connection()

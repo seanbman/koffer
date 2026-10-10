@@ -21,6 +21,8 @@ def test_packaged_manifest_loads_and_check_succeeds_without_weights() -> None:
     assert manifest.provider == "panns"
     assert manifest.model == "Cnn14"
     assert manifest.embedding_dim == 2048
+    assert manifest.checksum_recorded
+    assert manifest.size_bytes == 327428481
     result = check_model_manifest(cache_dir=Path("/tmp/koffer-no-models-cache"))
     assert result.ok is True
     assert result.artifact_present is False

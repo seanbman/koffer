@@ -1,4 +1,4 @@
-.PHONY: repo-guard lint typecheck test qa clean package package-stage licenses
+.PHONY: repo-guard run lint typecheck test qa clean package package-stage licenses
 
 repo-guard:
 	@tracked="$$(git ls-files | grep -E '^\.grapher(/|$$)' || true)"; \
@@ -8,6 +8,9 @@ repo-guard:
 		echo "$$tracked"; \
 		exit 1; \
 	fi
+
+run:
+	uv run --no-sync python -m koffer.app
 
 lint:
 	uv run --no-sync python -m ruff check .

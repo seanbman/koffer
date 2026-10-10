@@ -5,8 +5,8 @@
   "artifact": "Cnn14_mAP=0.431.pth",
   "version": "Cnn14_mAP=0.431",
   "source_url": "https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth?download=1",
-  "sha256": "",
-  "size_bytes": 0,
+  "sha256": "0dc499e40e9761ef5ea061ffc77697697f277f6a960894903df3ada000e34b31",
+  "size_bytes": 327428481,
   "embedding_dim": 2048,
-  "license_note": "Weights are not committed to Git. Download from the official Zenodo artifact, verify SHA256 after a recorded redistribution decision, and keep Koffer usable when the model is absent. See docs/23-dependencies-models-and-licensing.md and THIRD_PARTY_NOTICES."
+  "license_note": "Weights are not committed to Git. The SHA256 and size are recorded for the official Zenodo artifact (MD5 cross-check completed); download and verify before local use. Keep Koffer usable when the model is absent. See docs/23-dependencies-models-and-licensing.md and THIRD_PARTY_NOTICES."
 }

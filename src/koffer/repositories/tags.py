@@ -62,3 +62,15 @@ class TagRepository:
             )
             > 0
         )
+
+    def replace_for_sample(self, sample_id: EntityId, display_names: tuple[str, ...]) -> None:
+        """Replace one Sample's library tags without touching its media file."""
+        self._conn.execute("DELETE FROM sample_tags WHERE sample_id = ?", (str(sample_id),))
+        seen: set[str] = set()
+        for display_name in display_names:
+            cleaned = display_name.strip()
+            normalized = cleaned.casefold()
+            if not cleaned or normalized in seen:
+                continue
+            seen.add(normalized)
+            self.attach(sample_id, self.ensure_tag(cleaned))

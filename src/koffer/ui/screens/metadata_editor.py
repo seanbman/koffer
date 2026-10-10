@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from koffer.domain.enums import ArtworkAction, MetadataWriteTarget
+from koffer.domain.enums import ArtworkAction, ClassificationDimension, MetadataWriteTarget
 from koffer.domain.errors import ApplicationError
 from koffer.domain.ids import EntityId
 from koffer.domain.metadata_write import (
@@ -40,6 +40,7 @@ class MetadataEditorScreen(QWidget):
     back_requested = Signal()
     execute_requested = Signal()
     plan_ready = Signal()
+    library_saved = Signal()
 
     def __init__(
         self,
@@ -52,6 +53,7 @@ class MetadataEditorScreen(QWidget):
         self._state: MetadataEditState | None = None
         self._plan: MetadataWritePlan | None = None
         self._field_edits: dict[str, QLineEdit] = {}
+        self._library_fields: dict[ClassificationDimension, QLineEdit] = {}
         self._artwork_action = ArtworkAction.KEEP
         self._artwork_payload: ArtworkPayload | None = None
         self._artwork_path: Path | None = None
@@ -85,6 +87,47 @@ class MetadataEditorScreen(QWidget):
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.setSpacing(16)
+
+        library_heading = QLabel("Library information")
+        library_heading.setObjectName("metadataEditorLibraryHeading")
+        body_layout.addWidget(library_heading)
+        library_hint = QLabel(
+            "Koffer classifications and tags stay in your library. "
+            "They never rewrite the audio file. "
+            "Enter multiple values separated by commas."
+        )
+        library_hint.setObjectName("metadataEditorLibraryHint")
+        library_hint.setWordWrap(True)
+        library_hint.setStyleSheet(f"color: {MUTED};")
+        body_layout.addWidget(library_hint)
+        self._library_form = QFormLayout()
+        self._library_form.setObjectName("metadataEditorLibraryForm")
+        library_labels = {
+            ClassificationDimension.SAMPLE_TYPE: "Sample Type",
+            ClassificationDimension.INSTRUMENT_SOURCE: "Instrument / Source",
+            ClassificationDimension.MUSICAL_ROLE: "Musical Role",
+            ClassificationDimension.GENRE_STYLE: "Genre / Style",
+            ClassificationDimension.CHARACTER: "Character",
+        }
+        for dimension, label in library_labels.items():
+            edit = QLineEdit()
+            edit.setObjectName(f"metadataLibraryField_{dimension.value}")
+            edit.setPlaceholderText("Add values separated by commas")
+            self._library_fields[dimension] = edit
+            self._library_form.addRow(label, edit)
+        self._tags_edit = QLineEdit()
+        self._tags_edit.setObjectName("metadataLibraryTags")
+        self._tags_edit.setPlaceholderText("e.g. crunchy, favourite, live set")
+        self._library_form.addRow("Tags", self._tags_edit)
+        library_wrap = QWidget()
+        library_wrap.setObjectName("metadataEditorLibrarySection")
+        library_wrap.setLayout(self._library_form)
+        body_layout.addWidget(library_wrap)
+        self._library_status = QLabel("")
+        self._library_status.setObjectName("metadataEditorLibraryStatus")
+        self._library_status.setWordWrap(True)
+        self._library_status.setStyleSheet(f"color: {MUTED};")
+        body_layout.addWidget(self._library_status)
 
         # Descriptive (embeddable)
         desc_heading = QLabel("Descriptive (embeddable)")
@@ -141,11 +184,11 @@ class MetadataEditorScreen(QWidget):
         tags_heading = QLabel("Koffer Tags (library-only — not written to the file)")
         tags_heading.setObjectName("metadataEditorKofferTagsHeading")
         body_layout.addWidget(tags_heading)
-        self._tags = QLabel("—")
-        self._tags.setObjectName("metadataEditorKofferTags")
-        self._tags.setWordWrap(True)
-        self._tags.setStyleSheet(f"color: {MUTED};")
-        body_layout.addWidget(self._tags)
+        tags_note = QLabel("Tags are edited above and saved separately from embedded metadata.")
+        tags_note.setObjectName("metadataEditorKofferTags")
+        tags_note.setWordWrap(True)
+        tags_note.setStyleSheet(f"color: {MUTED};")
+        body_layout.addWidget(tags_note)
 
         # Write target
         target_heading = QLabel("Write Target")
@@ -198,6 +241,15 @@ class MetadataEditorScreen(QWidget):
         root.addWidget(scroll, stretch=1)
 
         actions = QHBoxLayout()
+        self._save_library_btn = QPushButton("Save Library Info")
+        self._save_library_btn.setObjectName("metadataEditorSaveLibraryButton")
+        self._save_library_btn.setStyleSheet(
+            "QPushButton#metadataEditorSaveLibraryButton {"
+            f" background-color: {CLAY}; color: #0B0D0F; border: none; border-radius: 5px;"
+            " padding: 8px 16px; font-weight: 600; }"
+        )
+        self._save_library_btn.clicked.connect(self._save_library_info)
+        actions.addWidget(self._save_library_btn)
         self._plan_btn = QPushButton("Review Plan")
         self._plan_btn.setObjectName("metadataEditorPlanButton")
         self._plan_btn.clicked.connect(self._build_plan)
@@ -245,14 +297,22 @@ class MetadataEditorScreen(QWidget):
         self._execute_btn.setEnabled(False)
         if not self._sample_ids:
             self._summary.setText("Select samples to edit embedded metadata.")
+            for edit in self._library_fields.values():
+                edit.clear()
+            self._tags_edit.clear()
+            self._save_library_btn.setEnabled(False)
             self._artwork.setText("Artwork: —")
-            self._tags.setText("—")
             self._limitations.setText("")
             self._plan_summary.setText("No plan yet.")
             return
 
         state = self._service.get_editor_state(self._sample_ids)
         self._state = state
+        library_values, library_tags = self._service.get_library_metadata(self._sample_ids)
+        for dimension, edit in self._library_fields.items():
+            edit.setText(", ".join(library_values[dimension]))
+        self._tags_edit.setText(", ".join(library_tags))
+        self._save_library_btn.setEnabled(True)
         formats = ", ".join(state.format_ids) or "unknown"
         self._summary.setText(
             f"{len(state.sample_ids)} sample(s) · formats: {formats}. "
@@ -298,11 +358,6 @@ class MetadataEditorScreen(QWidget):
             )
             self._artwork.setStyleSheet(f"color: {YELLOW};")
 
-        if state.koffer_tags:
-            self._tags.setText(", ".join(state.koffer_tags))
-        else:
-            self._tags.setText("No Koffer tags on selected samples.")
-
         if state.limitations:
             self._limitations.setText("Format notes: " + " · ".join(state.limitations))
         else:
@@ -312,6 +367,41 @@ class MetadataEditorScreen(QWidget):
             self._show_plan(self._plan)
         else:
             self._plan_summary.setText("No plan yet. Review Plan before execute.")
+
+    def _save_library_info(self) -> None:
+        if not self._sample_ids:
+            self._library_status.setText("Select at least one Sample first.")
+            return
+        values = {
+            dimension: self._split_values(edit.text())
+            for dimension, edit in self._library_fields.items()
+        }
+        tags = self._split_values(self._tags_edit.text())
+        try:
+            self._service.save_library_metadata(self._sample_ids, values, tags)
+        except ApplicationError as exc:
+            self._library_status.setText(str(exc))
+            self._library_status.setStyleSheet(f"color: {RED};")
+            return
+        self._library_status.setText(
+            "Saved to the Koffer library. Audio files and embedded metadata were not changed."
+        )
+        self._library_status.setStyleSheet(f"color: {CLAY};")
+        self._plan = None
+        self._execute_btn.setEnabled(False)
+        self.library_saved.emit()
+
+    @staticmethod
+    def _split_values(text: str) -> tuple[str, ...]:
+        values: list[str] = []
+        seen: set[str] = set()
+        for raw in text.split(","):
+            value = raw.strip()
+            key = value.casefold()
+            if value and key not in seen:
+                seen.add(key)
+                values.append(value)
+        return tuple(values)
 
     def _clear_fields(self) -> None:
         while self._desc_form.rowCount():

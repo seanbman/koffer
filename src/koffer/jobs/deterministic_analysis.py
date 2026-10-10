@@ -48,7 +48,33 @@ def run_deterministic_analysis_job(
     jobs.update(running)
     _emit(progress, running, succeeded=0, failed=0, skipped=0, force=True)
 
-    service = AnalysisService(connection_factory)
+    from koffer.analysis.embeddings import EmbeddingStore
+    from koffer.analysis.panns import PannsSemanticProvider
+    from koffer.domain.enums import AnalysisDepth
+
+    depth_raw = scope.get("depth", AnalysisDepth.DETERMINISTIC.value)
+    try:
+        depth = AnalysisDepth(str(depth_raw))
+    except ValueError:
+        depth = AnalysisDepth.DETERMINISTIC
+
+    cache_raw = scope.get("cache_dir")
+    if isinstance(cache_raw, str) and cache_raw:
+        from pathlib import Path
+
+        cache_dir = Path(cache_raw)
+    else:
+        from koffer.config.paths import resolve_app_paths
+
+        cache_dir = resolve_app_paths().cache_dir
+    provider = PannsSemanticProvider(cache_dir)
+    store = EmbeddingStore(cache_dir)
+    service = AnalysisService(
+        connection_factory,
+        semantic_provider=provider,
+        embedding_store=store,
+        cache_dir=cache_dir,
+    )
     succeeded = 0
     failed = 0
     skipped = 0
@@ -88,7 +114,7 @@ def run_deterministic_analysis_job(
             return cancelled
 
         try:
-            service.analyze_sample(sample_id)
+            service.analyze_sample(sample_id, depth=depth)
             succeeded += 1
         except Exception as exc:  # noqa: BLE001 — per-item failure must not abort batch
             failed += 1

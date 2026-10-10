@@ -35,6 +35,19 @@ _GROUP_LABELS = {
     ActivityGroup.COMPLETED: "COMPLETED",
 }
 
+_STATE_LABELS = {
+    JobState.RUNNING: "Running",
+    JobState.QUEUED: "Queued",
+    JobState.COMPLETED: "Completed",
+    JobState.CANCELLED: "Cancelled",
+    JobState.FAILED: "Failed",
+    JobState.COMPLETED_WITH_ERRORS: "Completed with issues",
+    JobState.INTERRUPTED: "Interrupted — needs attention",
+    JobState.CANCEL_REQUESTED: "Stopping…",
+    JobState.PAUSE_REQUESTED: "Pausing…",
+    JobState.PAUSED: "Paused",
+}
+
 
 class ActivityCenterScreen(QWidget):
     """Lists durable Jobs from the scheduler; closing does not cancel work."""
@@ -143,8 +156,13 @@ class ActivityCenterScreen(QWidget):
 
     def _make_row(self, summary: JobSummary) -> QListWidgetItem:
         job = summary.job
-        state_text = str(job.state)
-        counts = f"ok {summary.succeeded} · failed {summary.failed} · skipped {summary.skipped}"
+        state_text = _STATE_LABELS.get(job.state, "Needs attention")
+        count_parts = (
+            f"{summary.succeeded} completed",
+            f"{summary.failed} failed",
+            f"{summary.skipped} skipped",
+        )
+        counts = " · ".join(count_parts)
         text = f"{summary.title}\n{summary.detail}\n{state_text} · {counts}"
         item = QListWidgetItem(text)
         item.setData(Qt.ItemDataRole.UserRole, str(job.id))

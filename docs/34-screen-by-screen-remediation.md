@@ -537,6 +537,8 @@ Also:
 
 This is not complete if it only exposes booleans for a model that never runs.
 
+Implemented Local AI card states (not-installed / manifest-blocked / installed-disabled / enabled / error) use plain-language privacy copy distinguishing model download from user-audio privacy. Primary actions Install Model, Enable/Disable, Analyze Existing Library, Rebuild Suggestions, and Rebuild Similarity Index are real service paths or intentionally disabled with an explanation. A blank packaged checksum remains a blocked install state. Local AI actions stack vertically inside a scrollable Settings body so controls remain fully visible and non-overlapping at 1440×900 and the minimum 1180×720 desktop size; form captions use explicit light-on-dark label color.
+
 ---
 
 ## S19 — Audio & Appearance

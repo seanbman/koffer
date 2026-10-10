@@ -19,6 +19,11 @@ uv sync --all-extras
 ## Run
 
 ~~~bash
+make run
+~~~
+
+Equivalent direct entrypoint:
+~~~bash
 uv run koffer
 ~~~
 

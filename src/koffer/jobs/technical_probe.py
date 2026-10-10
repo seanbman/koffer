@@ -55,6 +55,7 @@ def run_technical_probe(
     failed = 0
     skipped = 0
     failures: list[dict[str, str]] = []
+    playable_sample_ids: list[EntityId] = []
 
     for index, sample_id in enumerate(sample_ids, start=1):
         if is_cancel_requested(conn, job.id):
@@ -66,6 +67,7 @@ def run_technical_probe(
                     "total": len(sample_ids),
                     "failures": failures,
                     "probe_version": PROBE_VERSION,
+                    "playable_sample_ids": [str(item) for item in playable_sample_ids],
                     "cancelled": True,
                 }
             )
@@ -200,6 +202,7 @@ def run_technical_probe(
             )
         )
         # Sample row is never deleted on probe success or failure.
+        playable_sample_ids.append(sample_id)
         succeeded += 1
         _progress(
             conn,
@@ -222,6 +225,7 @@ def run_technical_probe(
                 "total": len(sample_ids),
                 "failures": failures,
                 "probe_version": PROBE_VERSION,
+                "playable_sample_ids": [str(item) for item in playable_sample_ids],
                 "cancelled": True,
             }
         )
@@ -253,6 +257,7 @@ def run_technical_probe(
         "total": len(sample_ids),
         "failures": failures,
         "probe_version": PROBE_VERSION,
+        "playable_sample_ids": [str(item) for item in playable_sample_ids],
     }
     if failed or skipped:
         state = JobState.COMPLETED_WITH_ERRORS if succeeded else JobState.FAILED

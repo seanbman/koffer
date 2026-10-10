@@ -22,7 +22,7 @@ from koffer.services.similarity import (
     SimilarityService,
     SimilarityStatusKind,
 )
-from koffer.ui.tokens import CLAY, MUTED, RED, YELLOW
+from koffer.ui.tokens import BLUE, CLAY, MUTED, RED, SURFACE_1, TEXT, YELLOW
 
 
 class SimilarSoundsScreen(QWidget):
@@ -89,6 +89,10 @@ class SimilarSoundsScreen(QWidget):
 
         self._list = QListWidget()
         self._list.setObjectName("similarSoundsList")
+        self._list.setStyleSheet(
+            f"QListWidget {{ background: {SURFACE_1}; color: {TEXT}; }}"
+            f"QListWidget::item:selected {{ background: {BLUE}33; border-left: 2px solid {BLUE}; }}"
+        )
         self._list.itemSelectionChanged.connect(self._on_selection)
         root.addWidget(self._list, stretch=1)
 
@@ -116,9 +120,9 @@ class SimilarSoundsScreen(QWidget):
         self._seed.setText(f"Seed (pinned): {self._seed_name}")
         if status.kind is SimilarityStatusKind.MODEL_UNAVAILABLE:
             self._status.setText(
-                "Semantic embeddings are unavailable. "
-                "Library browse/search/collections remain usable. "
-                f"{status.detail} Model setup is available in Settings."
+                "Similar Sounds is unavailable until the Local AI model is installed. "
+                "Library browsing, search, and Collections remain available. "
+                "Install or enable Local AI in Settings → Analysis."
             )
             self._status.setStyleSheet(f"color: {YELLOW};")
             self._list.clear()
@@ -132,18 +136,26 @@ class SimilarSoundsScreen(QWidget):
         try:
             results = self._service.find_similar(self._seed_id, limit=50, filters=query)
         except ModelUnavailableError as exc:
-            self._status.setText(str(exc))
+            del exc
+            self._status.setText(
+                "Similar Sounds is not ready yet. Check Local AI in Settings → Analysis."
+            )
             self._status.setStyleSheet(f"color: {RED};")
             self._list.clear()
             self._results = []
             return
 
         self._results = results
-        backend = status.backend
-        self._status.setText(
-            f"Ranked by audio similarity · provider={status.provider} "
-            f"· model={status.model_version} · index={status.index_size} ({backend})"
-        )
+        if status.kind is SimilarityStatusKind.EMPTY and not results:
+            self._status.setText(
+                "The similarity index is ready to build. Analyze Samples with Local AI "
+                "to discover nearby sounds."
+            )
+        else:
+            self._status.setText(
+                f"Ranked by audio similarity · {status.index_size} analyzed "
+                f"sound{'s' if status.index_size != 1 else ''} available"
+            )
         self._status.setStyleSheet(f"color: {MUTED};")
         self._list.clear()
         # Seed remains visible at the top (acceptance: seed Sample always visible).
@@ -153,7 +165,7 @@ class SimilarSoundsScreen(QWidget):
         for row in results:
             offline = row.availability.value != "online"
             marker = " [offline]" if offline else ""
-            text = f"{row.score:0.3f}  {row.filename}{marker}"
+            text = f"{row.score:.0%} similar  ·  {row.filename}{marker}"
             item = QListWidgetItem(text)
             item.setData(256, str(row.sample_id))
             self._list.addItem(item)

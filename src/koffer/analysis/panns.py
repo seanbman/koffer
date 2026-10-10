@@ -1,16 +1,27 @@
 """PANNs-compatible SemanticProvider adapter (weights optional / out of Git).
 
-Implements a minimal Cnn14-shaped provider interface derived from the audited
-MIT ``qiuqiangkong/audioset_tagging_cnn`` reference. Torch is imported lazily
-so default CI never requires network weight downloads or a torch install.
+Implements a Cnn14 inference path derived from the audited MIT
+``qiuqiangkong/audioset_tagging_cnn`` reference. Torch and model weights are
+optional: absence yields a truthful unavailable state. The model-enabled path
+never fabricates embeddings or hard-coded labels.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from koffer.analysis.cnn14 import (
+    CNN14_EMBEDDING_DIM,
+    CNN14_SAMPLE_RATE_HZ,
+    load_audioset_class_labels,
+    load_cnn14_checkpoint,
+    run_cnn14_forward,
+    waveform_from_audio_path,
+)
 from koffer.analysis.manifest import (
     ModelManifest,
     load_model_manifest,
@@ -27,6 +38,12 @@ __all__ = [
 
 PANNS_PROVIDER_ID = "panns"
 
+# Optional DI hook for focused tests: (waveform, class_labels, top_k) -> result.
+InferenceRunner = Callable[
+    [np.ndarray, tuple[str, ...], int],
+    tuple[list[tuple[str, float]], np.ndarray],
+]
+
 
 class PannsSemanticProvider:
     """Local PANNs Cnn14 adapter. Unavailable when weights/torch are missing."""
@@ -38,6 +55,11 @@ class PannsSemanticProvider:
         manifest: ModelManifest | None = None,
         artifact_path: Path | None = None,
         enabled: bool = True,
+        top_k: int = 10,
+        inference_runner: InferenceRunner | None = None,
+        model: Any | None = None,
+        class_labels: tuple[str, ...] | None = None,
+        require_torch: bool = True,
     ) -> None:
         self._cache_dir = Path(cache_dir)
         self._manifest = manifest if manifest is not None else load_model_manifest()
@@ -47,9 +69,13 @@ class PannsSemanticProvider:
             else resolve_model_artifact_path(self._cache_dir, self._manifest)
         )
         self._enabled = enabled
+        self._top_k = top_k
+        self._inference_runner = inference_runner
+        self._model = model
+        self._class_labels = class_labels
+        self._require_torch = require_torch
         self._torch_checked = False
         self._torch_available = False
-        self._model: object | None = None
 
     @property
     def provider_id(self) -> str:
@@ -88,7 +114,10 @@ class PannsSemanticProvider:
             verify_model_artifact(self._artifact_path, self._manifest)
         except ValidationError as exc:
             return f"Model artifact failed checksum verification: {exc.summary}"
-        if not self._ensure_torch():
+        if self._inference_runner is not None:
+            # Test/injected runner still requires a verified artifact, not torch.
+            return None
+        if self._require_torch and not self._ensure_torch():
             return "Optional dependency 'torch' is not installed"
         return None
 
@@ -103,19 +132,54 @@ class PannsSemanticProvider:
         if not path.is_file():
             raise ValidationError("Audio path is not a readable file", detail=str(path))
 
-        # Full Cnn14 forward pass is opt-in once weights + torch are present.
-        # Until the audited architecture module is wired for production smoke,
-        # return a deterministic embedding derived from verified artifact bytes
-        # plus waveform energy so the provider contract stays testable without
-        # network downloads in unit CI.
-        embedding = self._fallback_embedding(path)
-        labels = (SemanticLabel("Synthesizer", 0.5),)
+        waveform = waveform_from_audio_path(path, sample_rate_hz=CNN14_SAMPLE_RATE_HZ)
+        labels_table = self._labels()
+        if self._inference_runner is not None:
+            pairs, embedding = self._inference_runner(waveform, labels_table, self._top_k)
+        else:
+            model = self._ensure_model()
+            pairs, embedding = run_cnn14_forward(
+                model,
+                waveform,
+                class_labels=labels_table,
+                top_k=self._top_k,
+                sample_rate_hz=CNN14_SAMPLE_RATE_HZ,
+            )
+
+        if embedding.dtype != np.float32 or embedding.ndim != 1:
+            embedding = np.asarray(embedding, dtype=np.float32).reshape(-1)
+        if embedding.shape[0] != self.embedding_dim and embedding.shape[0] != CNN14_EMBEDDING_DIM:
+            raise ValidationError(
+                "Semantic embedding dimension mismatch",
+                detail=f"expected={self.embedding_dim} actual={embedding.shape[0]}",
+            )
+        if not pairs:
+            raise ValidationError("Semantic inference returned no labels")
+
+        semantic_labels = tuple(
+            SemanticLabel(label=name, score=float(score)) for name, score in pairs
+        )
         return SemanticInferenceResult(
-            labels=labels,
-            embedding=embedding,
+            labels=semantic_labels,
+            embedding=embedding.astype(np.float32),
             model_version=self.model_version,
             provider=self.provider_id,
         )
+
+    def _labels(self) -> tuple[str, ...]:
+        if self._class_labels is not None:
+            return self._class_labels
+        self._class_labels = load_audioset_class_labels()
+        return self._class_labels
+
+    def _ensure_model(self) -> Any:
+        if self._model is not None:
+            return self._model
+        self._model = load_cnn14_checkpoint(
+            self._artifact_path,
+            classes_num=len(self._labels()),
+        )
+        return self._model
 
     def _ensure_torch(self) -> bool:
         if self._torch_checked:
@@ -128,31 +192,3 @@ class PannsSemanticProvider:
             return False
         self._torch_available = True
         return True
-
-    def _fallback_embedding(self, audio_path: Path) -> np.ndarray:
-        """Stable float32 embedding when full torch Cnn14 forward is not wired."""
-        from koffer.filesystem.hashing import content_fingerprint
-
-        dim = self.embedding_dim
-        seed_material = f"{self.model_version}:{content_fingerprint(audio_path)}".encode()
-        import hashlib
-
-        digest = hashlib.sha256(seed_material).digest()
-        rng = np.random.default_rng(int.from_bytes(digest[:8], "little"))
-        raw = rng.standard_normal(dim).astype(np.float32)
-        # Mix in lightweight waveform energy when the file is readable as WAV.
-        try:
-            import wave
-
-            with wave.open(str(audio_path), "rb") as handle:
-                frames = handle.readframes(min(handle.getnframes(), handle.getframerate()))
-            if frames:
-                pcm = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
-                energy = float(np.sqrt(np.mean(np.square(pcm)))) if pcm.size else 0.0
-                raw[0] += energy * 1e-4
-        except Exception:  # noqa: BLE001 — optional energy cue; never fail infer
-            pass
-        norm = float(np.linalg.norm(raw))
-        if norm > 0:
-            raw = raw / norm
-        return raw.astype(np.float32)

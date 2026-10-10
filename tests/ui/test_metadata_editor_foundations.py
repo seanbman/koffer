@@ -105,3 +105,49 @@ def test_s09_write_to_copy_target_enables_destination(qtbot: object, tmp_path: P
         assert execute.isEnabled()
     finally:
         context.close()
+
+
+def test_s09_edits_library_classifications_and_tags_without_file_write(
+    qtbot: object, tmp_path: Path
+) -> None:
+    context = AppContext.open_temp(tmp_path / "s09-library")
+    pack = tmp_path / "pack"
+    pack.mkdir()
+    source_path = pack / "kick.wav"
+    write_tagged_wav(source_path, title="Kick")
+    try:
+        source = context.source_service.add_source(pack)
+        assert (
+            context.scheduler.wait(context.source_service.scan(source.id), timeout=30.0).state
+            is JobState.COMPLETED
+        )
+        sample = SampleRepository(context.connection_factory.get_connection()).list_by_source(
+            source.id
+        )[0]
+        original_bytes = source_path.read_bytes()
+
+        window = MainWindow(context, directory_picker=lambda _p: None)
+        qtbot.addWidget(window)  # type: ignore[attr-defined]
+        window.open_metadata_editor([sample.id])
+
+        sample_type = window.findChild(QLineEdit, "metadataLibraryField_sample_type")
+        instrument = window.findChild(QLineEdit, "metadataLibraryField_instrument_source")
+        tags = window.findChild(QLineEdit, "metadataLibraryTags")
+        save = window.findChild(QPushButton, "metadataEditorSaveLibraryButton")
+        assert sample_type is not None and instrument is not None and tags is not None
+        assert save is not None
+        sample_type.setText("One-shot")
+        instrument.setText("Kick, Drum")
+        tags.setText("favourite, crunchy")
+        save.click()
+
+        values, saved_tags = context.metadata_service.get_library_metadata([sample.id])
+        assert values[next(d for d in values if d.value == "sample_type")] == ("One-shot",)
+        assert values[next(d for d in values if d.value == "instrument_source")] == (
+            "Drum",
+            "Kick",
+        )
+        assert saved_tags == ("crunchy", "favourite")
+        assert source_path.read_bytes() == original_bytes
+    finally:
+        context.close()

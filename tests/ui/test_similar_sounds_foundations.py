@@ -83,8 +83,16 @@ def test_s11_with_fake_provider_lists_similarity_scores(qtbot: object, tmp_path:
         # Seed pinned + at least one scored neighbor.
         assert "SEED" in listing.item(0).text()
         neighbor_texts = [listing.item(i).text() for i in range(1, listing.count())]
-        assert any(text[:1].isdigit() for text in neighbor_texts)
+        assert any("similar" in text for text in neighbor_texts)
+        assert "provider=" not in status_text(window)
+        assert "model=" not in status_text(window)
         preview = window.findChild(QPushButton, "similarSoundsPreviewButton")
         assert preview is not None
     finally:
         context.close()
+
+
+def status_text(window: MainWindow) -> str:
+    status = window.findChild(QLabel, "similarSoundsStatus")
+    assert status is not None
+    return status.text()

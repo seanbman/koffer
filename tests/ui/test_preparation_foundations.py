@@ -1,4 +1,4 @@
-"""Offscreen pytest-qt coverage for S08/S14 preparation and render foundations."""
+"""Offscreen pytest-qt coverage for S08 Edit Sound workbench and S14 export."""
 
 from __future__ import annotations
 
@@ -20,10 +20,10 @@ from koffer.domain.enums import JobState
 from koffer.filesystem.hashing import content_fingerprint
 from koffer.repositories.samples import SampleRepository
 from koffer.ui.shell import MainWindow
-from koffer.ui.widgets.waveform_view import WaveformView
+from koffer.ui.widgets.workbench_waveform import WorkbenchWaveformView
 
 
-def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path: Path) -> None:
+def test_s08_workbench_direct_manipulation_and_source_safety(qtbot: object, tmp_path: Path) -> None:
     context = AppContext.open_temp(tmp_path / "s08")
     pack = tmp_path / "pack"
     pack.mkdir()
@@ -47,15 +47,18 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         assert window.current_screen_id() == "S08"
         screen = window.findChild(QWidget, "samplePreparationScreen")
         assert screen is not None
-        badge = window.findChild(QLabel, "samplePreparationNondestructiveBadge")
+        title = screen.findChild(QLabel, "pageTitle")
+        assert title is not None
+        assert "Edit Sound" in title.text()
+        badge = screen.findChild(QLabel, "samplePreparationNondestructiveBadge")
         assert badge is not None
         assert "Non-destructive" in badge.text()
-        source_label = window.findChild(QLabel, "samplePreparationSourceLabel")
+        source_label = screen.findChild(QLabel, "samplePreparationSourceLabel")
         assert source_label is not None
         assert "tone.wav" in source_label.text()
 
-        waveform = window.findChild(WaveformView, "samplePreparationWaveform")
-        waveform_state = window.findChild(QLabel, "samplePreparationWaveformState")
+        waveform = screen.findChild(WorkbenchWaveformView, "samplePreparationWaveform")
+        waveform_state = screen.findChild(QLabel, "samplePreparationWaveformState")
         assert waveform is not None
         assert waveform_state is not None
         qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -64,15 +67,27 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         )
         assert "unavailable" not in waveform_state.text().lower()
 
-        normalize_peak = window.findChild(
+        for object_name in (
+            "samplePreparationZoomInButton",
+            "samplePreparationZoomOutButton",
+            "samplePreparationFitButton",
+            "samplePreparationUndoButton",
+            "samplePreparationRedoButton",
+            "samplePreparationABOriginalButton",
+            "samplePreparationABEditedButton",
+            "samplePreparationPreviewLoop",
+        ):
+            assert screen.findChild(QWidget, object_name) is not None, object_name
+
+        normalize_peak = screen.findChild(
             QDoubleSpinBox,
             "samplePreparationNormalizePeak",
         )
-        fine_cents = window.findChild(QSpinBox, "samplePreparationFineCents")
-        channels = window.findChild(QComboBox, "samplePreparationChannels")
-        sample_rate = window.findChild(QComboBox, "samplePreparationSampleRate")
-        bit_depth = window.findChild(QComboBox, "samplePreparationBitDepth")
-        output_format = window.findChild(QComboBox, "samplePreparationOutputFormat")
+        fine_cents = screen.findChild(QSpinBox, "samplePreparationFineCents")
+        channels = screen.findChild(QComboBox, "samplePreparationChannels")
+        sample_rate = screen.findChild(QComboBox, "samplePreparationSampleRate")
+        bit_depth = screen.findChild(QComboBox, "samplePreparationBitDepth")
+        output_format = screen.findChild(QComboBox, "samplePreparationOutputFormat")
         assert normalize_peak is not None
         assert fine_cents is not None
         assert channels is not None
@@ -80,30 +95,46 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         assert bit_depth is not None
         assert output_format is not None
 
-        trim_start = window.findChild(QSpinBox, "samplePreparationTrimStart")
+        trim_start = screen.findChild(QSpinBox, "samplePreparationTrimStart")
         assert trim_start is not None
         trim_start.setValue(120)
-        reverse = window.findChild(QCheckBox, "samplePreparationReverse")
+        reverse = screen.findChild(QCheckBox, "samplePreparationReverse")
         assert reverse is not None
         reverse.setChecked(True)
+        fade_in = screen.findChild(QSpinBox, "samplePreparationFadeIn")
+        assert fade_in is not None
+        fade_in.setValue(10)
+        assert window.sample_preparation.controller.dirty is True
+        dirty = screen.findChild(QLabel, "samplePreparationDirtyBadge")
+        assert dirty is not None
+        assert "Unsaved" in dirty.text()
 
-        save = window.findChild(QPushButton, "samplePreparationSaveButton")
+        # Numeric edits move waveform model handles.
+        assert window.sample_preparation.controller.recipe.trim.start_ms == 120
+        assert window.sample_preparation.controller.recipe.fade_in_ms == 10
+        assert window.sample_preparation.controller.recipe.reverse is True
+
+        save = screen.findChild(QPushButton, "samplePreparationSaveButton")
         assert save is not None
         save.click()
         assert content_fingerprint(media) == before
+        assert window.sample_preparation.controller.dirty is False
+        loaded = context.preparation_service.get_recipe(samples[0].id)
+        assert loaded.trim.start_ms == 120
+        assert loaded.reverse is True
 
-        reset = window.findChild(QPushButton, "samplePreparationResetButton")
+        reset = screen.findChild(QPushButton, "samplePreparationResetButton")
         assert reset is not None
         reset.click()
         assert trim_start.value() == 0
         assert reverse.isChecked() is False
         assert content_fingerprint(media) == before
 
-        gain = window.findChild(QDoubleSpinBox, "samplePreparationGain")
+        gain = screen.findChild(QDoubleSpinBox, "samplePreparationGain")
         assert gain is not None
         gain.setValue(2.0)
-        preview = window.findChild(QPushButton, "samplePreparationPreviewButton")
-        preview_note = window.findChild(QLabel, "samplePreparationPreviewNote")
+        preview = screen.findChild(QPushButton, "samplePreparationPreviewButton")
+        preview_note = screen.findChild(QLabel, "samplePreparationPreviewNote")
         assert preview is not None
         assert preview_note is not None
         preview.click()
@@ -121,8 +152,9 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         gain.setValue(3.0)
         assert window.sample_preparation.preview_path is None
 
-        export = window.findChild(QPushButton, "samplePreparationExportButton")
+        export = screen.findChild(QPushButton, "samplePreparationExportButton")
         assert export is not None
+        assert export.text() == "Export Copy"
         export.click()
         assert window.current_screen_id() == "S14"
         render_screen = window.findChild(QWidget, "renderExportScreen")
@@ -136,5 +168,6 @@ def test_s08_identifies_source_and_nondestructive_recipe(qtbot: object, tmp_path
         job_note = window.findChild(QLabel, "renderExportJobNote")
         assert job_note is not None
         assert "background Job" in job_note.text()
+        assert content_fingerprint(media) == before
     finally:
         context.close()

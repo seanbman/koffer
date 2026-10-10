@@ -156,6 +156,46 @@ class PreparationRecipe:
         recipe.validate()
         return recipe
 
+    def is_identity(self) -> bool:
+        """True when the recipe matches the default (no audible/export edits)."""
+        return self == PreparationRecipe.default()
+
+    def concise_edit_summary(self) -> str | None:
+        """Short Sample badge such as ``Edited · Trim + Normalize + -2 st``."""
+        parts: list[str] = []
+        if self.trim.start_ms > 0 or self.trim.end_ms is not None:
+            parts.append("Trim")
+        if self.fade_in_ms > 0 or self.fade_out_ms > 0:
+            parts.append("Fade")
+        if abs(self.gain_db) > 1e-6:
+            parts.append(f"{self.gain_db:+.1f} dB")
+        if self.normalize.enabled:
+            parts.append("Normalize")
+        if abs(self.transpose_semitones) > 1e-6:
+            value = (
+                f"{self.transpose_semitones:g}"
+                if float(self.transpose_semitones).is_integer()
+                else f"{self.transpose_semitones:+.1f}"
+            )
+            parts.append(f"{value} st")
+        elif self.fine_cents != 0:
+            parts.append(f"{self.fine_cents:+d} c")
+        if abs(self.time_stretch_ratio - 1.0) > 1e-6:
+            parts.append(f"Stretch {self.time_stretch_ratio:.3f}×")
+        if self.reverse:
+            parts.append("Reverse")
+        if self.channels != "source":
+            parts.append(self.channels.title())
+        if self.sample_rate_hz != "source":
+            parts.append(f"{self.sample_rate_hz} Hz")
+        if self.bit_depth != "source":
+            parts.append(f"{self.bit_depth}-bit")
+        if self.output_format != "wav":
+            parts.append(self.output_format.upper())
+        if not parts:
+            return None
+        return "Edited · " + " + ".join(parts)
+
     def summary_lines(self) -> tuple[str, ...]:
         """Human-readable recipe summary for S08/S14."""
         lines = [

@@ -5,17 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QToolButton, QWidget
 
 from koffer.app_context import AppContext
 from koffer.audio.wav_fixtures import write_malformed_wav, write_tagged_wav
 from koffer.domain import JobState
+from koffer.domain.preparation import NormalizeSpec, PreparationRecipe, TrimSpec
 from koffer.repositories import SampleRepository
 from koffer.ui.shell import MainWindow
 from koffer.ui.widgets.waveform_view import WaveformView
 
 
-def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Path) -> None:
+def test_s07_edit_sound_primary_and_human_readable_hierarchy(qtbot: object, tmp_path: Path) -> None:
     context = AppContext.open_temp(tmp_path / "s07")
     pack = tmp_path / "pack"
     pack.mkdir()
@@ -28,6 +29,14 @@ def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Pat
         sample = SampleRepository(context.connection_factory.get_connection()).list_by_source(
             source.id
         )[0]
+        context.preparation_service.save_recipe(
+            sample.id,
+            PreparationRecipe(
+                trim=TrimSpec(start_ms=12, end_ms=400),
+                normalize=NormalizeSpec(enabled=True),
+                transpose_semitones=-2.0,
+            ),
+        )
 
         window = MainWindow(context, directory_picker=lambda _p: None)
         qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -41,27 +50,9 @@ def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Pat
         assert title is not None
         assert "hat.wav" in title.text().lower() or "hat" in title.text().lower()
 
-        categories = {
-            "provenanceTechnical",
-            "provenanceEmbedded",
-            "provenanceConfirmed",
-            "provenanceSuggested",
-            "provenanceTags",
-        }
-        for object_name in categories:
-            frame = screen.findChild(QFrame, object_name)
-            assert frame is not None, object_name
-            assert frame.property("provenanceCategory") in {
-                "technical",
-                "embedded",
-                "confirmed",
-                "suggested",
-                "tags",
-            }
-
-        embedded_body = screen.findChild(QLabel, "provenanceBodyEmbedded")
-        assert embedded_body is not None
-        assert "Closed Hat" in embedded_body.text()
+        identity = screen.findChild(QLabel, "sampleDetailIdentity")
+        assert identity is not None
+        assert "hat.wav" in identity.text().lower()
 
         waveform = screen.findChild(WaveformView, "sampleDetailWaveform")
         waveform_state = screen.findChild(QLabel, "sampleDetailWaveformState")
@@ -73,28 +64,56 @@ def test_s07_renders_distinct_provenance_categories(qtbot: object, tmp_path: Pat
         )
         assert "unavailable" not in waveform_state.text().lower()
 
-        edit = screen.findChild(QPushButton, "editMetadataButton")
-        prepare = screen.findChild(QPushButton, "prepareButton")
-        add_collection = screen.findChild(QPushButton, "addToCollectionButton")
-        organize = screen.findChild(QPushButton, "organizeSampleButton")
-        reveal = screen.findChild(QPushButton, "revealSampleButton")
-        assert edit is not None
-        assert prepare is not None
-        assert add_collection is not None
-        assert organize is not None
-        assert reveal is not None
-        assert edit is not prepare
-        assert reveal.isEnabled()
-        assert window.transport.selected_sample_id == str(sample.id)
+        classification = screen.findChild(QWidget, "sampleDetailClassification")
+        suggestions = screen.findChild(QWidget, "sampleDetailSuggestions")
+        tags = screen.findChild(QWidget, "sampleDetailTagsCollections")
+        edit_summary = screen.findChild(QWidget, "sampleDetailEditSummary")
+        assert classification is not None
+        assert suggestions is not None
+        assert tags is not None
+        assert edit_summary is not None
+        summary_body = edit_summary.findChild(QLabel, "sampleDetailEditSummaryBody")
+        assert summary_body is not None
+        assert "Edited" in summary_body.text()
+        assert "Trim" in summary_body.text()
 
-        collections = screen.findChild(QLabel, "sampleDetailCollections")
-        history = screen.findChild(QLabel, "sampleDetailHistory")
-        path = screen.findChild(QLabel, "sampleDetailPath")
-        assert collections is not None
-        assert history is not None
-        assert path is not None
-        assert "HISTORY" in history.text()
-        assert str(pack) in path.text()
+        file_details = screen.findChild(QWidget, "sampleDetailFileDetails")
+        analysis_details = screen.findChild(QWidget, "sampleDetailAnalysisDetails")
+        assert file_details is not None
+        assert analysis_details is not None
+        file_body = file_details.findChild(QLabel, "sampleDetailFileDetailsBody")
+        analysis_body = analysis_details.findChild(QLabel, "sampleDetailAnalysisDetailsBody")
+        assert file_body is not None and file_body.isHidden()
+        assert analysis_body is not None and analysis_body.isHidden()
+        file_toggle = file_details.findChild(QToolButton, "sampleDetailFileDetailsToggle")
+        assert file_toggle is not None
+        file_toggle.setChecked(True)
+        assert not file_body.isHidden()
+        assert "Closed Hat" in file_body.text()
+
+        # Default path must not dump raw JSON / hashes / UUIDs.
+        default_text = " ".join(
+            label.text()
+            for label in screen.findChildren(QLabel)
+            if label.isVisible() and label.objectName() != "sampleDetailFileDetailsBody"
+        )
+        assert "{" not in default_text
+        assert "sha256" not in default_text.lower()
+        assert str(sample.id) not in default_text
+
+        edit = screen.findChild(QPushButton, "editMetadataButton")
+        edit_sound = screen.findChild(QPushButton, "editSoundButton")
+        add_collection = screen.findChild(QPushButton, "addToCollectionButton")
+        assert edit is not None
+        assert edit_sound is not None
+        assert add_collection is not None
+        assert edit_sound.text() == "Edit Sound"
+        assert edit.text() == "Edit Info"
+        assert edit is not edit_sound
+
+        qtbot.mouseClick(edit_sound, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+        assert window.current_screen_id() == "S08"
+        assert window.transport.selected_sample_id == str(sample.id)
     finally:
         context.close()
 
@@ -140,9 +159,12 @@ def test_s07_malformed_sample_does_not_crash_detail(qtbot: object, tmp_path: Pat
         qtbot.addWidget(window)  # type: ignore[attr-defined]
         window._open_sample_detail(str(sample.id))  # noqa: SLF001 — direct foundation path
         assert window.current_screen_id() == "S07"
-        embedded_body = window.findChild(QLabel, "provenanceBodyEmbedded")
-        assert embedded_body is not None
-        assert "Unavailable" in embedded_body.text() or "error" in embedded_body.text().lower()
+        file_toggle = window.findChild(QToolButton, "sampleDetailFileDetailsToggle")
+        assert file_toggle is not None
+        file_toggle.setChecked(True)
+        file_body = window.findChild(QLabel, "sampleDetailFileDetailsBody")
+        assert file_body is not None
+        assert "unavailable" in file_body.text().lower() or "could not" in file_body.text().lower()
 
         back = window.findChild(QPushButton, "backToLibraryButton")
         assert back is not None

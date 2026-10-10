@@ -29,6 +29,24 @@ def _operation_plain_language(kind: FileOperationKind) -> str:
     return "Move — relocate files into the destination."
 
 
+def _operation_action_label(kind: FileOperationKind) -> str:
+    return {
+        FileOperationKind.REFERENCE: "Reference",
+        FileOperationKind.COPY: "Copy",
+        FileOperationKind.MOVE: "Move",
+    }[kind]
+
+
+def _conflict_action_label(action: ConflictAction) -> str:
+    return {
+        ConflictAction.REVIEW: "Review required",
+        ConflictAction.KEEP_BOTH: "Keep both",
+        ConflictAction.SKIP: "Skip",
+        ConflictAction.REPLACE: "Replace (explicit)",
+        ConflictAction.CHOOSE_DESTINATION: "Choose destination",
+    }[action]
+
+
 class ImportReviewScreen(QWidget):
     """S12: review Reference/Copy/Move plan before filesystem mutation."""
 
@@ -80,7 +98,7 @@ class ImportReviewScreen(QWidget):
         self._items.setObjectName("importReviewItemList")
         root.addWidget(self._items, stretch=1)
 
-        self._empty = QLabel("Load a planned operation to review items before execute.")
+        self._empty = QLabel("Load an operation to review items before continuing.")
         self._empty.setObjectName("bodyText")
         root.addWidget(self._empty)
 
@@ -90,7 +108,7 @@ class ImportReviewScreen(QWidget):
         self._resolve_btn.clicked.connect(self.resolve_conflicts_requested.emit)
         actions.addWidget(self._resolve_btn)
         actions.addStretch(1)
-        self._execute_btn = QPushButton("Execute Plan")
+        self._execute_btn = QPushButton("Apply")
         self._execute_btn.setObjectName("importReviewExecuteButton")
         self._execute_btn.setStyleSheet(
             "QPushButton#importReviewExecuteButton {"
@@ -123,12 +141,15 @@ class ImportReviewScreen(QWidget):
             return
 
         self._operation.setText(_operation_plain_language(plan.kind))
+        self._execute_btn.setText(_operation_action_label(plan.kind))
         if plan.destination_root:
             self._destination.setText(f"Destination: {plan.destination_root}")
         else:
             self._destination.setText("Destination: (none — Reference keeps paths)")
         self._policy.setText(
-            f"Conflict default: {plan.conflict_policy.default_action} (never silent overwrite)"
+            "Conflict default: "
+            f"{_conflict_action_label(plan.conflict_policy.default_action)} "
+            "(never silent overwrite)"
         )
         unresolved = plan.unresolved_conflicts()
         self._empty.setVisible(False)
@@ -136,13 +157,13 @@ class ImportReviewScreen(QWidget):
         for item in plan.items:
             conflict_bit = ""
             if item.conflict and item.conflict_action is ConflictAction.REVIEW:
-                conflict_bit = " · CONFLICT needs review"
+                conflict_bit = " · CONFLICT: needs review"
             elif item.conflict_action is ConflictAction.SKIP:
-                conflict_bit = " · skip"
+                conflict_bit = " · Skip"
             elif item.conflict_action is ConflictAction.KEEP_BOTH:
-                conflict_bit = " · keep both"
+                conflict_bit = " · Keep both"
             elif item.conflict_action is ConflictAction.REPLACE:
-                conflict_bit = " · replace (explicit)"
+                conflict_bit = " · Replace (explicit)"
             dest = item.destination_path or "(in place)"
             text = f"{Path(item.source_path).name}\n{item.source_path}\n→ {dest}{conflict_bit}"
             self._items.addItem(QListWidgetItem(text))

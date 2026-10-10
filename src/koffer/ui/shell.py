@@ -240,6 +240,7 @@ class MainWindow(QMainWindow):
         self._sample_preparation.preview_ready.connect(self._play_preparation_preview)
         self._metadata_editor.back_requested.connect(lambda: self.navigate(SCREEN_SAMPLE_DETAIL))
         self._metadata_editor.execute_requested.connect(self._execute_metadata_plan)
+        self._metadata_editor.library_saved.connect(self._refresh_after_library_metadata)
         self._suggestions.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._import_review.back_requested.connect(lambda: self.navigate(SCREEN_LIBRARY))
         self._import_review.resolve_conflicts_requested.connect(self._open_conflicts_from_review)
@@ -470,7 +471,7 @@ class MainWindow(QMainWindow):
                 SCREEN_SOURCES: "Sources",
                 SCREEN_SOURCE_DETAIL: (f"Sources / {self._source_detail.source_name or 'Source'}"),
                 SCREEN_SAMPLE_DETAIL: f"Sample / {self._sample_detail.sample_name or 'Detail'}",
-                SCREEN_SAMPLE_PREPARATION: "Prepare",
+                SCREEN_SAMPLE_PREPARATION: "Edit Sound",
                 SCREEN_METADATA_EDITOR: "Metadata",
                 SCREEN_SUGGESTIONS: "Review",
                 SCREEN_SIMILAR_SOUNDS: "Similar Sounds",
@@ -962,6 +963,13 @@ class MainWindow(QMainWindow):
         del job_id
         self.navigate(SCREEN_ACTIVITY)
 
+    def _refresh_after_library_metadata(self) -> None:
+        """Refresh visible library/detail projections after S09 library-only edits."""
+        self._library.refresh()
+        sample_ids = self._metadata_editor.sample_ids
+        if len(sample_ids) == 1:
+            self._sample_detail.show_sample(sample_ids[0])
+
     def _open_conflicts_from_review(self) -> None:
         plan = self._import_review.plan
         if plan is None:
@@ -982,7 +990,8 @@ class MainWindow(QMainWindow):
         try:
             job_id = self._context.file_operation_service.execute(plan)
         except ApplicationError as exc:
-            QMessageBox.warning(self, "Could not execute plan", str(exc))
+            operation = plan.kind.value.capitalize()
+            QMessageBox.warning(self, f"Could not apply {operation}", str(exc))
             return
         del job_id
         self.navigate(SCREEN_ACTIVITY)

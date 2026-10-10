@@ -88,3 +88,4 @@ skip_covered = false
 "src/koffer/persistence/migrations" = "koffer/persistence/migrations"
 "src/koffer/analysis/models" = "koffer/analysis/models"
 "src/koffer/analysis/label_maps" = "koffer/analysis/label_maps"
+# models/ includes panns_cnn14.json + audioset_class_labels.json (no weight binaries).

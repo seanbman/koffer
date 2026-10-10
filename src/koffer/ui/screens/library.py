@@ -354,7 +354,7 @@ class LibraryBrowserScreen(QWidget):
         add_collection.triggered.connect(self._action_add_to_collection)
         menu.addAction(add_collection)
 
-        prepare = QAction("Prepare…", menu)
+        prepare = QAction("Edit Sound…", menu)
         prepare.setObjectName("sampleContextPrepare")
         prepare.setEnabled(enabled)
         prepare.triggered.connect(self._action_prepare)

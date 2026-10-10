@@ -19,6 +19,13 @@ from koffer.services.file_operations import (
     FileOperationService,
     PlannedFileItem,
 )
+from koffer.services.local_ai import (
+    BackfillPlan,
+    LocalAiService,
+    LocalAiStatus,
+    LocalAiStatusKind,
+    WorkloadSize,
+)
 from koffer.services.maintenance import MaintenanceService
 from koffer.services.metadata import (
     MetadataCapabilities,
@@ -62,9 +69,14 @@ __all__ = [
     "ConflictPolicy",
     "FileOperationPlan",
     "FileOperationService",
+    "BackfillPlan",
     "GeneralSettings",
     "LibraryAnalysisSettings",
+    "LocalAiService",
+    "LocalAiStatus",
+    "LocalAiStatusKind",
     "MaintenanceService",
+    "WorkloadSize",
     "MetadataCapabilities",
     "MetadataService",
     "PlaybackService",

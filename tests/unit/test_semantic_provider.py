@@ -36,3 +36,8 @@ def test_panns_provider_unavailable_without_weights(tmp_path: Path) -> None:
         raise AssertionError("expected UnsupportedOperationError")
     except UnsupportedOperationError as exc:
         assert exc.code == "unsupported_operation"
+
+
+def test_panns_provider_has_no_fabricated_fallback_embedding() -> None:
+    # Historical placeholder helpers must not exist on the model-enabled path.
+    assert not hasattr(PannsSemanticProvider, "_fallback_embedding")

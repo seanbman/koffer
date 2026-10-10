@@ -138,7 +138,7 @@ class RenderExportScreen(QWidget):
         plan_btn.clicked.connect(self._build_plan)
         actions.addWidget(plan_btn)
 
-        self._execute = QPushButton("Start Render Job")
+        self._execute = QPushButton("Export Copy")
         self._execute.setObjectName("renderExportExecuteButton")
         self._execute.setEnabled(False)
         self._execute.setProperty("primary", True)
@@ -227,12 +227,12 @@ class RenderExportScreen(QWidget):
         self._plan = plan
         self._execute.setEnabled(True)
         self._output.setText(f"Output: {plan.destination_path}")
-        argv_preview = " ".join(plan.ffmpeg_argv[:8]) + (" …" if len(plan.ffmpeg_argv) > 8 else "")
         self._plan_summary.setText(
-            "Plan ready. Original and output are separate files.\n"
-            f"Conflict policy: {plan.conflict_policy}.\n"
-            f"Source hash: {plan.source_content_hash[:16]}…\n"
-            f"FFmpeg argv (shell=False): {argv_preview or '(ffmpeg unavailable at plan time)'}"
+            "Ready to export a new file. The original Sample remains unchanged.\n"
+            f"Format: {recipe.output_format.upper()} · "
+            f"Sample rate: {recipe.sample_rate_hz} · Channels: {recipe.channels} · "
+            f"Bit depth: {recipe.bit_depth}\n"
+            f"Conflict policy: {plan.conflict_policy.value.replace('_', ' ').title()}"
         )
         self.plan_ready.emit()
 

@@ -146,7 +146,7 @@ def test_sample_context_menu_exposes_required_actions(qtbot: object, tmp_path: P
         assert "sampleContextAddToCollection" in actions
         assert "Add to Collection" in actions["sampleContextAddToCollection"].text()
         assert "sampleContextPrepare" in actions
-        assert "Prepare" in actions["sampleContextPrepare"].text()
+        assert "Edit Sound" in actions["sampleContextPrepare"].text()
         assert "sampleContextEditMetadata" in actions
         assert "Edit Metadata" in actions["sampleContextEditMetadata"].text()
         for name in (

@@ -16,6 +16,7 @@ from koffer.repositories.sources import SourceRepository
 from koffer.services.analysis import AnalysisService
 from koffer.services.collections import CollectionService
 from koffer.services.file_operations import FileOperationService
+from koffer.services.local_ai import LocalAiService
 from koffer.services.maintenance import MaintenanceService
 from koffer.services.metadata import MetadataService
 from koffer.services.playback import PlaybackService, PlaybackState
@@ -50,6 +51,7 @@ class AppContext:
     preparation_service: PreparationService
     analysis_service: AnalysisService
     similarity_service: SimilarityService
+    local_ai_service: LocalAiService
     maintenance_service: MaintenanceService
     recovery_service: RecoveryService
     settings_service: SettingsService
@@ -68,7 +70,12 @@ class AppContext:
         factory = ConnectionFactory(paths.data_dir / database_name)
         apply_migrations(factory.get_connection())
         # recover_on_start marks abandoned running Jobs interrupted (docs/24).
-        scheduler = JobScheduler(factory, io_workers=io_workers, recover_on_start=True)
+        scheduler = JobScheduler(
+            factory,
+            io_workers=io_workers,
+            recover_on_start=True,
+            cache_dir=paths.cache_dir,
+        )
         source_service = SourceService(factory, scheduler)
         search_service = SearchService(factory)
         settings_service = SettingsService(factory)
@@ -80,9 +87,35 @@ class AppContext:
         sample_service = SampleService(factory, metadata_service)
         file_operation_service = FileOperationService(factory, scheduler)
         preparation_service = PreparationService(factory, scheduler)
-        analysis_service = AnalysisService(factory, scheduler)
-        # Default PANNs provider stays unavailable without out-of-git weights.
-        similarity_service = SimilarityService(factory, paths.cache_dir, scheduler=scheduler)
+        from koffer.analysis.embeddings import EmbeddingStore
+        from koffer.analysis.panns import PannsSemanticProvider
+
+        # Shared local provider: unavailable without verified weights/torch; never uploads.
+        semantic_provider = PannsSemanticProvider(paths.cache_dir)
+        embedding_store = EmbeddingStore(paths.cache_dir)
+        analysis_service = AnalysisService(
+            factory,
+            scheduler,
+            semantic_provider=semantic_provider,
+            embedding_store=embedding_store,
+            cache_dir=paths.cache_dir,
+        )
+        similarity_service = SimilarityService(
+            factory,
+            paths.cache_dir,
+            provider=semantic_provider,
+            scheduler=scheduler,
+        )
+        local_ai_service = LocalAiService(
+            factory,
+            settings_service,
+            cache_dir=paths.cache_dir,
+            scheduler=scheduler,
+            analysis_service=analysis_service,
+            similarity_service=similarity_service,
+            semantic_provider=semantic_provider,
+            embedding_store=embedding_store,
+        )
         maintenance_service = MaintenanceService(factory, scheduler, paths)
         recovery_service = RecoveryService(factory)
         context = cls(
@@ -100,6 +133,7 @@ class AppContext:
             preparation_service=preparation_service,
             analysis_service=analysis_service,
             similarity_service=similarity_service,
+            local_ai_service=local_ai_service,
             maintenance_service=maintenance_service,
             recovery_service=recovery_service,
             settings_service=settings_service,
